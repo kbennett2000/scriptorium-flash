@@ -37,9 +37,50 @@ was provisioned, so nothing could be charged.
 
 ---
 
+## 2026-08-17 — Cycle 3
+
+### Account baseline, re-read at the start of the cycle
+
+`runpodctl user`, free read-only query. Every Cycle 3 cost is measured against
+this line.
+
+| Field | Value |
+|---|---|
+| `clientBalance` | **$49.9945861833** |
+| `currentSpendPerHr` | $0 |
+| `spendLimit` | $80 |
+| Serverless endpoints (`runpodctl serverless list`) | `[]` |
+| Container-registry credentials (`runpodctl registry list`) | `null` |
+| Flash apps (`flash app list`) | none |
+
+**Unchanged to the last decimal place from Cycle 2's closing reading.** Both CLIs
+now authenticate against one `~/.runpod/config.toml`, which after `flash login`
+carries a top-level `apikey` **and** a `[default].api_key`, both 50 characters.
+Neither value has been read by this project.
+
+### The credential defect is filed
+
+**[runpod/flash#363](https://github.com/runpod/flash/issues/363)** — `flash`
+cannot read a `~/.runpod/config.toml` written by `runpodctl`; the error suggests
+exporting the key instead.
+
+Filed on `runpod/flash`, the public repository behind the `runpod-flash` package.
+No duplicate existed. Three corrections to the Cycle 2 draft were made before
+filing; they are in [AI-ASSIST.md](AI-ASSIST.md) under "Cycle 3: the credential
+issue, filed". The one that matters most for the record: **Runpod's
+documentation never claims the two CLIs interoperate.** That claim is in Runpod's
+shipped agent skills, a different artifact in a different repository, and the
+issue attributes it there.
+
+Draft issues 2 (container disk billing at zero workers) and 3 (whether an
+`idle`/`ready` worker bills) stay unfiled until their measurements land.
+
+---
+
 ## 2026-08-17 — Cycle 2
 
 ### Account baseline, before any spend
+
 
 Read with `runpodctl user` and `runpodctl billing`, both free read-only queries.
 This is the reference point every later cost in this cycle is measured against.
