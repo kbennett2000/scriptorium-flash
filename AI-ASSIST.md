@@ -22,6 +22,130 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — Deploying the first app: what the tools told us, and what they did not
+
+Friction from the first real deployment. The numbers are in
+[FINDINGS.md](FINDINGS.md); this is what the tooling did around them.
+
+### The one that costs money: `runpodctl` cannot see the setting that bills
+
+`flash`'s `Endpoint(workers=(0, 1))` deploys `workersStandby: 1`. That field is
+what the console calls an **active worker**, and Runpod's own configuration page
+says active workers "incur charges continuously, including when idle."
+
+Neither `runpodctl serverless list` nor `runpodctl serverless get <id>` returns
+`workersStandby`. Both return `workersMax` and omit both `workersMin` and
+`workersStandby` entirely. So the CLI shows you a `workersMax: 1` endpoint and
+gives you no way to learn that a worker is being held warm.
+
+Seeing it required going outside both CLIs, to
+`GET https://rest.runpod.io/v1/endpoints`, which returns all three fields.
+
+**And there is no CLI route to fix it either.** `runpodctl serverless update`
+offers `--workers-min` and `--workers-max` and no standby flag. A `PATCH` to
+`rest.runpod.io/v1/endpoints/<id>` with `{"workersStandby": 0}` is rejected:
+
+```
+HTTP 400 {"error":"Extra input keys provided in request body",
+ "problems":["key provided in request body which is not in input schema: 'workersStandby'"]}
+```
+
+So the v1 REST API will *report* the field and will not *accept* it. The only
+remaining lever found was deleting the endpoint.
+
+This is the material for draft issue 5, which is **not written yet and not
+filed** — it waits on the longer measurement, per the same rule as drafts 2
+and 3.
+
+### The CLI prints a request example that cannot work
+
+`flash deploy` finished by printing the app's routes and then a ready-to-paste
+curl:
+
+```
+  hello-flash  https://qb4qjquyist574.api.runpod.ai
+               GET   /health
+               POST  /predict
+
+curl -X POST https://qb4qjquyist574.api.runpod.ai/predict \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" \
+  -d '{"input": {}}'
+```
+
+Two problems in four lines, on the endpoint the command just created.
+
+It is a **load-balanced** endpoint — the CLI says so immediately above, listing
+`GET /health` and `POST /predict`. A load-balanced route takes the handler's
+argument at the top level, so this app wants `{"data": {...}}`. The printed body
+is the **queue-based** shape.
+
+And `{"input": {}}` is specifically the payload Runpod's own flash skill
+documents as always failing: *"Never send an empty `input`. A QB request with
+`{"input": {}}` is rejected by the worker SDK as `Job has missing field(s): id or
+input`."* The CLI prints it as the suggested first call.
+
+The third line also assumes `RUNPOD_API_KEY` is exported, which it is not on a
+machine set up with `flash login` — the auth method the docs recommend.
+
+### Three transient GraphQL failures inside one deploy
+
+The redeploy retried three times before succeeding:
+
+```
+WARNING | Retrying GraphQL request after transient failure (attempt 1/3): GraphQL errors: Something went wrong. Please try again later or contact support.
+WARNING | Retrying GraphQL request after transient failure (attempt 2/3): GraphQL errors: Something went wrong. Please try again later or contact support.
+WARNING | Retrying GraphQL request after transient failure (attempt 3/3): GraphQL errors: Something went wrong. Please try again later or contact support.
+WARNING | LiveLoadBalancer:qb4qjquyist574 is no longer valid, redeploying.
+```
+
+**Credit where due: the retry worked and the deploy succeeded.** The last line is
+also genuinely good behaviour — the previous endpoint had been deleted out from
+under the app, and Flash detected the stale load balancer and provisioned a new
+one instead of failing. The deploy took 14.6 s instead of 2.4 s and produced a
+new endpoint id.
+
+The complaint is only that "Something went wrong. Please try again later or
+contact support." is what the server said three times about a stale-resource
+condition that Flash then diagnosed correctly by itself.
+
+### `ready` does not mean ready, and `completed` never moves
+
+Two observations about the platform health route, both of which would mislead
+someone building a dashboard on it.
+
+`GET /v2/<id>/health` reported `workers: {idle: 1, ready: 1}` *before* the first
+request. That request still paid a **31.387 s** cold start. Whatever `ready`
+counts, it is not "will answer promptly".
+
+And `jobs: {completed: 0, …}` stayed at zero through four successful requests,
+because load-balanced routes are not queue jobs. On a Flash LB endpoint the job
+counters are permanently zero and cannot be used to confirm traffic.
+
+### Building an `Authorization` header without touching the key
+
+Worth recording as the answer to a problem Cycle 2 deferred rather than solved.
+
+Calling any endpoint needs a Bearer header. `runpodctl` has no subcommand that
+invokes one, so Cycle 2 skipped its test call rather than reach for the
+key-extraction one-liner it had flagged in Runpod's own skills:
+
+```
+KEY="${RUNPOD_API_KEY:-$(grep '^apikey' ~/.runpod/config.toml | sed ...)}"
+```
+
+`tools/runpod_http.py` does it instead: it reads `~/.runpod/config.toml` inside
+the process, builds the header there, and has no flag that can print a key. Every
+byte it emits or saves passes through a redactor, and its error path drops the
+original exception so a urllib `HTTPError` cannot carry request headers into a
+traceback. The difference from the one-liner is not cosmetic — that version
+leaves the key in a shell variable, the process table, and the shell history,
+all of which outlive the command.
+
+It accepts either key name, because after `flash login` the file has both.
+
+---
+
 ## 2026-08-17 — Cycle 3: the credential issue, filed
 
 **Filed: [runpod/flash#363](https://github.com/runpod/flash/issues/363)** —
