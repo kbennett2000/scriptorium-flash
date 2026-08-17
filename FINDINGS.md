@@ -489,6 +489,43 @@ That is a strong lead, **not proof** — the alternative explanation is simply t
 the credit was never exactly $50.00. Closing it needs either the console's billing
 view or a `get-public-endpoint-billing-history` call.
 
+### The Runpod render app reproduces the home graph exactly
+
+Measured, not asserted. The app is built and **not deployed**, so there is no
+Runpod render time yet — but the thing that makes such a number honest is settled,
+and it is settled by comparing output rather than by comparing settings tables.
+
+`flash-imagegen/verify_port.py` rebuilds a plate the home bakery already rendered,
+using the seed, positive prompt and negative prompt recorded in that plate's own
+provenance file, submits it to the local ComfyUI, and compares the result against
+the stored PNG pixel by pixel.
+
+| Plate | Path exercised | Differing pixels | Max abs difference |
+|---|---|---:|---:|
+| `pg-41` `0001` | LoRA only | **0** of 1,011,712 | 0 |
+| `pg-41` `0003` | LoRA + IP-Adapter | **0** of 1,011,712 | 0 |
+
+Pixel-identical on both paths. SDXL at a fixed seed is deterministic, so any
+difference in checkpoint, VAE, LoRA, sampler, scheduler, step count, CFG, size or
+IP-Adapter wiring would change the image. The 7 of 9 Sleepy Hollow plates that
+used a character reference make the second row the more important one.
+
+**It failed the first time, which is the reason the check exists.** The initial
+port *set* the negative prompt on node `7`. imagegen-service *appends* it — the
+workflow template carries a baseline `blurry, lowres, deformed, text, watermark`
+and the caller's negative is joined onto it (`engine.ts:562-569`). Replacing it
+dropped five negative terms and changed **1,010,483 of 1,011,712 pixels**. Every
+setting in the comparison table was correct at the time.
+
+Model files are verified the same way rather than trusted by filename: all five
+match the recorded byte count and SHA256 of the files the home machine is running
+(`flash-imagegen/fetch_models.py --check-only`, 5 of 5 ok). The style LoRA's hash,
+`74b377ee…adc87fd`, also matches CivitAI's record for version 2.1 and the
+creator's own HuggingFace mirror, which is what establishes its provenance.
+
+Pinned for this to stay true: ComfyUI 0.27.0 at `6cc8144`, `ComfyUI_IPAdapter_plus`
+at `a0f451a`, torch 2.11.0+cu128.
+
 ### The test call was not made
 
 It needs an `Authorization: Bearer` header, and the only way to build one here is
