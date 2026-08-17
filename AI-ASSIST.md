@@ -22,6 +22,76 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — Installing the Flash CLI, following the skill
+
+Friction log from doing exactly what `flash/reference/setup-and-cli.md` says, on
+a clean machine. Four things, none fatal, all worth a sentence in the docs.
+
+**1. The documented install command fails on a current machine — and the skill
+already knows.** This box runs Python 3.14.4 as its default. `runpod-flash`
+1.19.0 declares `requires_python <3.14`, so the headline command
+`uv tool install runpod-flash` cannot work here. The skill's quick start at
+`flash/SKILL.md:28` gives that bare command. The correct one is three lines
+further down in `reference/setup-and-cli.md:9`:
+
+```
+uv tool install --python 3.13 runpod-flash
+```
+
+Credit where due: the reference file *does* call this out — *"on Python 3.14+
+the install fails — pin an older interpreter for the tool."* The gap is that the
+top-level quick start, which is what gets read first and copied, does not. Cost:
+one failed install. Verdict: **documented, badly placed.**
+
+**2. `flash` writes into whatever directory you run it in.** Running
+`flash --version` created `.flash/logs/activity.log` in the current working
+directory. Zero bytes, but it appeared from a command that only prints a version
+string, in a directory that is a git repository. Nothing in the skill mentions
+`.flash/`. It is now in this repo's `.gitignore`. Verdict: **undocumented, minor,
+would be surprising in someone's home directory.**
+
+**3. The CLI has a large dependency surface, including a third-party crash
+reporter.** The install pulled in ~60 packages, among them `sentry-sdk`. To be
+accurate about it: that arrives transitively via `fastapi-cloud-cli`, it is not
+Runpod's telemetry, and nothing in `runpod_flash` initializes it — `grep` for
+`sentry_sdk.init` across the package finds only `fastapi_cloud_cli`'s own
+module. So this is **not** a phone-home. It is worth noting only as supply-chain
+surface for a CLI whose job is to upload a Python file.
+
+**4. `flash login` is unusable by an agent, and the skill says so.** It is
+browser OAuth, marked *"Human-only (needs a browser)"*. The documented
+alternative is `export RUNPOD_API_KEY=...`. Worth flagging that
+`flash/SKILL.md:203-206` describes a genuinely nasty consequence of having both:
+a set environment variable silently overrides a good saved login, and the
+failure is quiet — provisioning logs a 401 while `flash dev` still prints its
+normal ready line. That is a good gotcha, well written, and it is gotcha number
+13 of 15 rather than a warning next to the auth instructions.
+
+### What the skill got right
+
+Worth saying, because a log of only complaints is not useful:
+
+- The `Endpoint` constructor reference (`flash/reference/api.md:5-29`) is
+  complete and accurate — every parameter used in `hello-flash/main.py` came
+  from it and behaved as described.
+- `flash/SKILL.md:175`, gotcha #1, is the single most valuable line in the
+  skill: only the function body ships to the worker under `flash dev`, so a
+  module-level constant raises `NameError` remotely, while `flash deploy`
+  imports the whole module and works. Code that fails in development and
+  succeeds in production is a confusing direction for a bug to travel, and being
+  warned in advance saved real time.
+- The teardown guidance is honest about its own tooling being unreliable
+  (`flash undeploy list` can report "no endpoints" for an app that is deployed),
+  and it names the command that actually works.
+
+### Still open
+
+The app is written and not deployed, because no API key exists on this machine.
+No Runpod resource has been created and nothing has been spent. Deployment
+numbers — cold start, request time, cost — go in `FINDINGS.md` when it runs.
+
+---
+
 ## 2026-08-17 — Security audit of the six Runpod agent skills
 
 **Why:** the skills were installed to help build on Runpod, and an install-time
