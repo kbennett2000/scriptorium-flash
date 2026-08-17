@@ -1,0 +1,31 @@
+# Personal Claude Code config (permissions) — not shared. This pattern ignores the file both
+# in this standalone project and while the folder is still nested inside its origin repo.
+.claude/settings.local.json
+
+# The shared engine pin (.claude/settings.json) is intentionally NOT ignored — it travels with
+# the repo so every clone runs on the same model/effort.
+
+# cycle runtime
+/.factory/
+/cycle.log
+PAUSE
+
+# Secrets. The Runpod API key lives at ~/.runpod/config.toml, outside this repo,
+# so it cannot be committed at all. These patterns are belt-and-braces for
+# anything that drifts into the working tree.
+.env
+.env.*
+*.key
+*.pem
+.runpod/
+**/config.toml
+
+# Measurement working files. Journal snapshots can contain arbitrary log text;
+# the derived JSON and the FINDINGS.md tables are what get committed.
+/runs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
