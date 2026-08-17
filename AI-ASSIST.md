@@ -22,6 +22,75 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — Cycle 3: the credential issue, filed
+
+**Filed: [runpod/flash#363](https://github.com/runpod/flash/issues/363)** —
+"flash cannot read a `~/.runpod/config.toml` written by runpodctl; the error
+suggests exporting the key instead".
+
+Filed on `runpod/flash`, which is the public repository behind the `runpod-flash`
+package (`src/runpod_flash/…`), has issues enabled, and had no duplicate —
+searched `RunpodAPIKeyError`, `get_credentials default profile` and
+`apikey config.toml` across the whole `runpod` org before filing.
+
+Three things changed between Cycle 2's draft and what was filed. All three are
+corrections to Cycle 2, not additions.
+
+**1. The repro is sharper, and the old one was weaker than it looked.** Cycle 2
+compared a working `runpodctl user` against a failing `flash app list`. That
+leaves a reader able to wonder whether the key itself was the problem. The filed
+repro points both tools at an isolated `HOME` holding a one-line config with a
+*placeholder* key:
+
+```
+$ env -u RUNPOD_API_KEY HOME=/tmp/fakehome runpodctl user
+{"error":"api request failed with status 401","code":"unauthorized","status":401}
+
+$ env -u RUNPOD_API_KEY HOME=/tmp/fakehome flash app list
+RunpodAPIKeyError: No RunPod API key found.
+```
+
+`runpodctl` returning **401** is the whole argument: it read the file and
+transmitted what it found. `flash`, against the same file, reports that no key
+exists. The difference is isolated to the read path and nothing else. Verified
+today against 1.19.0, not quoted from Cycle 2.
+
+**2. The write path already knows, and Cycle 2 missed it.** At upstream HEAD,
+`src/runpod_flash/core/credentials.py:23-28` carries a comment naming
+runpodctl's top-level `apikey` and explaining that `flash login` must preserve
+it. So the project is already aware both schemas share one file — it handles
+that when **writing** and not when **reading**. Cycle 2 read this as an
+oversight. It is an asymmetry, which is a better-evidenced and more fixable
+thing to report.
+
+**3. "The docs say one login serves both" is not accurate, and the issue does
+not claim it.** Checked before filing:
+
+| Page | What it actually says |
+|---|---|
+| `docs.runpod.io/flash/overview` | "`flash login` … This saves your API key securely." Never names the file or its schema. |
+| `docs.runpod.io/runpodctl/install-runpodctl` | Names `~/.runpod/config.toml` and an `apiKey` field. Never mentions `flash`. |
+| `docs.runpod.io/get-started/api-keys` | Console key management only. |
+
+Runpod's **documentation** never claims the two interoperate. Runpod's shipped
+**agent skills** do — `runpod-usage/reference/getting-started.md` ("one login
+serves both") and `runpod/SKILL.md` ("runpodctl + flash read it"). Those are a
+different artifact in a different repository, and the issue attributes the claim
+to them by name rather than to the docs. Cycle 2's own entry got this right; the
+loose phrasing crept in afterwards, and it is corrected here.
+
+**One suggestion in the issue is worth repeating, because it costs nothing.**
+runpod-python already computes the exact diagnostic the error should print.
+`check_credentials()` returns *"~/.runpod/config.toml is missing default
+profile."* `get_api_key()` calls `get_credentials()` instead, which returns a
+bare `None`, so that string is thrown away and the user gets three remedies that
+all begin with obtaining the plaintext key.
+
+Versions on the report: `runpod-flash` 1.19.0, `runpod` (runpod-python) 1.12.0,
+`runpodctl` 2.9.0-c094cac, Python 3.13.
+
+---
+
 ## 2026-08-17 — Where the billing documentation leaves you guessing
 
 Answering one question — does an idle Flash app with zero workers bill anything —
@@ -243,7 +312,13 @@ entries present, and nothing tells you so.
 Versions: `runpodctl 2.9.0-c094cac`, `Runpod Flash CLI v1.19.0`,
 `runpod-flash` 1.19.0 on Python 3.13.
 
-### Draft issue — for Kris to approve before filing
+### Draft issue — FILED 2026-08-17 as [runpod/flash#363](https://github.com/runpod/flash/issues/363)
+
+> **Superseded by what was actually filed.** Kept verbatim as the record of what
+> was drafted. Three corrections were made before filing — a sharper repro, the
+> write-preserves/read-ignores asymmetry, and precise attribution of the "one
+> login serves both" claim to the skill pack rather than to the documentation.
+> See "Cycle 3: the credential issue, filed" at the top of this file.
 
 > **Title:** `flash` cannot read a `~/.runpod/config.toml` written by `runpodctl`, and the error suggests exporting the key instead
 >
