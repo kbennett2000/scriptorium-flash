@@ -66,6 +66,253 @@ billing**, which is the Task 5 question the documentation cannot answer. It is a
 lead, not an answer, and it is not counted as this project's spend — it predates
 Cycle 2's first command.
 
+### Sleepy Hollow — ingest integrity, checked before baking
+
+Cycle 1 established the rule: verify ingest against the source before spending
+any GPU time, because *Usher* silently lost 48% of its text and reported no
+warnings. Sleepy Hollow was not previously ingested, so it was created fresh and
+checked.
+
+| Field | Value |
+|---|---|
+| Book | *The Legend of Sleepy Hollow* |
+| Author | Washington Irving |
+| Source | Project Gutenberg ebook #41 |
+| Source words | **12,214** (after Project Gutenberg boilerplate is stripped) |
+| Stored words | **12,187** |
+| **Retention** | **99.78%** |
+| Pages after pagination | 20 |
+| Chapters detected | 2 |
+| Ingest warnings | `[]` — none |
+| Scriptorium book id | `pg-41` |
+
+Source count measured the same way as Cycle 1: fetch
+`https://www.gutenberg.org/ebooks/41.txt.utf-8`, cut everything outside the
+Project Gutenberg START/END markers, count whitespace-separated tokens. Stored
+count is the sum of the 20 page word counts in
+`scriptorium-data/work/pg-41/pages/*.json`.
+
+**The chapter-detection bug did fire, and it cost 27 words, none of them prose.**
+This needs stating carefully, because "99.78%" could hide a real loss.
+
+The warnings array is empty, and that is the *bad* sign rather than the good one.
+`chapters_undetected` — the warning *Yellow Wallpaper* produced — only fires when
+detection finds nothing and the whole-text fallback keeps everything. Its absence
+means detection succeeded and `_chapters_from_headings` ran, which is the path
+that drops text. Two headings were detected, both all-caps lines:
+`FOUND AMONG THE PAPERS OF THE LATE DIEDRICH KNICKERBOCKER.` and
+`FOUND IN THE HANDWRITING OF MR. KNICKERBOCKER.`
+
+Every one of the 27 missing words is accounted for:
+
+| Words | Text | Why it went |
+|---:|---|---|
+| 8 | `The Legend of Sleepy Hollow by Washington Irving` | precedes the first detected heading, so it falls outside every chapter |
+| 9 | `FOUND AMONG THE PAPERS OF THE LATE DIEDRICH KNICKERBOCKER.` | became a chapter title in `structure.json` rather than body text |
+| 7 | `FOUND IN THE HANDWRITING OF MR. KNICKERBOCKER.` | same |
+| 1 | `POSTSCRIPT.` | classed as heading-ish |
+| 2 | `THE END.` | classed as heading-ish |
+| **27** | | **sums exactly to the measured shortfall** |
+
+Not one word of narrative prose is among them. `CASTLE OF INDOLENCE.` — the
+epigraph's attribution — was *not* detected as a heading and survives in the body.
+
+Spot-checks both pass. The stored text opens `A pleasing land of drowsy head it
+was, Of dreams that wave before the half-shut eye…` and closes `…“as to that
+matter, I don't believe one-half of it myself.” D. K.`
+
+**One incidental benefit.** Because the title-and-byline line was dropped,
+Washington Irving cannot be mistaken for a character. *Yellow Wallpaper* kept its
+byline inside page 1 and the cast stage duly picked up "Charlotte Perkins
+Gilman" as a person in the story. The same defect that loses 8 words here
+prevents a worse defect downstream.
+
+**Verdict: pass.** Retention 99.78% against a 99.5% threshold set in advance,
+with every missing word identified and none of it prose. Recorded, not fixed —
+the defect belongs to Scriptorium and is out of scope this cycle.
+
+### Sleepy Hollow — plate count
+
+**9 plates in the measured run**, inside the settled 8–12 target. Read from
+`selection.plates`, which is what the selection engine wrote.
+
+| Reason | Count | Pages |
+|---|---:|---|
+| `chapter_open` | 2 | 0001, 0020 |
+| `fill` | 5 | 0003, 0006, 0008, 0011, 0013 |
+| `scene_boundary` | 2 | 0015, 0018 |
+
+Selection parameters, unchanged from Cycle 1: preset `lavish`, `min_gap` 1,
+`max_gap` 3, `salience_floor` 0.40, `chapter_open` and `scene_boundary` both on.
+
+**The plate count is not deterministic, and that is worth knowing before anyone
+cites it.** The pre-flight probe of the same book with the same settings selected
+**10** plates; the measured run selected **9**. Nothing was changed between them.
+The cause is upstream: `scene-update` and `cast-mentions` are language-model calls
+run at `temperature` 0.2, so the per-page salience scores differ slightly from run
+to run, and selection marks pages by comparing salience against
+`salience_floor` and each other. Both runs landed inside 8–12, and the two
+`scene_boundary` pages (0015, 0018) and both chapter openers were identical across
+runs — it is the gap-filling positions that moved.
+
+So the honest claim is **"Sleepy Hollow yields 9–10 plates at `lavish`"**, not a
+single number, and the figure quoted alongside any timing is the one from that
+same run.
+
+**It is a better standard story than Yellow Wallpaper, not merely a longer one.**
+Yellow Wallpaper produced 5 plates of which 4 were gap-filling, because a
+first-person diary set in one room gives the selection engine almost no scene
+changes to find. Sleepy Hollow contributes 2 genuine `scene_boundary` marks and 2
+real chapter openers, so 4 of its 9 plates are chosen by content rather than by
+spacing arithmetic.
+
+### An observation about the cast, because it affects the render count
+
+Cast canonicalization left 21 characters, 6 of them marked major, and the major
+six are what get portraits. Several entries are plainly the same person:
+`brom-bones`, `redoubtable-brom-bones` and `bones`; `van-tassel`,
+`balt-van-tassel`, `old-baltus-van-tassel` and `mynheer-van-tassel`;
+`headless-horseman`, `galloping-hessian` and `galloping-hessian-2`.
+
+This is recorded because it is load-bearing for the numbers, not as a complaint:
+portrait count follows the major-cast count, portraits are renders, and renders
+are what the Runpod comparison measures. A different canonicalization would
+change the total render count without changing the per-render time. It is a
+Scriptorium quality issue, out of scope this cycle, and it was not touched.
+
+### Baseline: the home bakery on Sleepy Hollow, end to end
+
+One complete bake of `pg-41`, run unchanged on its normal home setup. Scriptorium's
+source was not touched and its deployed configuration was not modified. Both human
+review gates were cleared by the driver the instant they opened, so gate wait is
+effectively zero and machine time equals wall clock.
+
+Same hardware and models as Cycle 1: one NVIDIA RTX 5070 with 12 GB of video
+memory, text model `qwen3.5:9b` served by Ollama behind text-transform-service,
+image model `sd_xl_base_1.0` served by ComfyUI behind imagegen-service. Bake
+settings: density preset `lavish`, `images_per_scene: 1`, portraits enabled,
+portrait review off, style `oil-painting`, era `1790s Hudson Valley`.
+
+**Wall clock: 388.63 s (6 min 29 s). Gate wait: 0.009 s.**
+
+| Bucket | Time | Share |
+|---|---:|---:|
+| Text steps | 162.20 s | 41.7% |
+| Image rendering | 123.34 s | 31.7% |
+| Orchestration | 71.89 s | 18.5% |
+| Model loading | 31.19 s | 8.0% |
+| **Total** | **388.63 s** | **100%** |
+
+Model loading is reported separately but happens *inside* the other two. Including
+it, text steps took 165.49 s gross and image rendering 151.24 s gross.
+
+**Text steps — 55 model calls, 162.20 s net**
+
+| Transform | Calls | Total | Median |
+|---|---:|---:|---:|
+| `cast-mentions` | 20 | 59.86 s | 2.877 s |
+| `scene-update` | 20 | 63.54 s | 2.946 s |
+| `illustration-prompt` | 9 | 26.42 s | 2.523 s |
+| `cast-canonicalize` | 6 | 15.67 s | 1.791 s |
+
+All 55 returned 200. Call counts match artifact counts exactly (20 / 20 / 6),
+which is how the measurement window is confirmed correct.
+
+**Image rendering — 16 renders, 123.34 s net**
+
+Warm render median **7.595 s** at 832×1216 (n=8). All 16 renders were attributed
+to this bake and none were left unclaimed; pairing gap p50 was 0.38 s, max
+0.592 s. The 16 are 9 plates, 6 character portraits at 1024×1024, and 1 cover.
+
+**Model loading — 31.19 s**
+
+| Cause | Count | Each | Total |
+|---|---:|---:|---:|
+| Image model reloaded after the orchestrator freed the GPU | 1 | 8.195 s | 8.20 s |
+| Image model re-staged under video-memory pressure | 7 | 2.815 s | 19.71 s |
+| Text model loaded cold | 1 | — | 3.29 s |
+
+The orchestrator freed the GPU 4 times and unloaded the text model 3 times.
+Incidental re-staging — ComfyUI evicting and restoring the image model under
+12 GB of pressure — happened 7 times in 16 renders and again cost more than the
+deliberate swapping did.
+
+**Orchestration — 71.89 s**
+
+| Component | Time |
+|---|---:|
+| Idle between phases (11 gaps, 5 s runner tick) | 34.11 s |
+| Generating web and thumbnail derivatives | 6.95 s |
+| Everything else (HTTP, artifact writes, ingest, publish) | 30.83 s |
+
+Machine-readable output: `runs/pg-41/timing.json`. Driver log: `runs/pg-41/run.json`.
+Collector integrity flags: counts match artifacts, residual non-negative, no
+foreign transforms in the window, no warnings.
+
+### Sleepy Hollow against Yellow Wallpaper — the constants hold
+
+The point of re-measuring is not the wall clock, which obviously grows with a
+longer book. It is whether the *derived* per-render constants reproduce.
+
+| | `pg-1952` | `pg-41` | Difference |
+|---|---:|---:|---:|
+| Words | 6,085 | 12,187 | +100% |
+| Pages | 11 | 20 | +82% |
+| Plates | 5 | 9 | +80% |
+| Renders | 12 / 12 | 16 / 16 | — |
+| Text calls | 33 | 55 | +67% |
+| Wall clock | 289.39 s | 388.63 s | +34% |
+| **Warm render median** | **7.615 s** (n=6) | **7.595 s** (n=8) | **−0.3%** |
+| Re-stage penalty | 2.795 s | 2.815 s | +0.7% |
+| Reload-after-free penalty | 10.565 s | 8.195 s | −22% |
+| GPU free events | 4 | 4 | — |
+
+**The warm render median agrees to within 0.3% across two different books.** With
+Cycle 1's two reference bakes (`pg-75201` at 7.44 s, `pg-28054` at 7.49 s) that is
+four independent measurements of the same constant spanning 7.44–7.615 s. **7.6 s
+per 832×1216 plate is a sound number to hold Runpod against.**
+
+Two things did move, and both are explainable rather than noise:
+
+- **Reload-after-free dropped 22%** (10.565 s → 8.195 s). It is a single event in
+  each run, so it is one sample, not a median — a 2 s spread on one cold load is
+  not a finding.
+- **Text steps went from 28.6% of the run to 41.7%**, and the per-call medians rose
+  (`cast-mentions` 1.869 s → 2.877 s). Sleepy Hollow's pages are longer (609 words
+  average against 553) and it has 21 cast members against Yellow Wallpaper's
+  smaller cast, so each call carries more input and returns more output. This is
+  the more interesting shift for the migration: **on this book the text steps are
+  now the largest bucket, larger than image rendering.**
+
+**What that means for the Runpod plan.** Image generation — the part moving to
+Flash first — is 31.7% of this run, close to Cycle 1's 32.8%. But text steps are
+now 41.7%. Moving rendering to Runpod addresses the second-largest bucket, not the
+largest. The hosted per-token endpoints in Task 5 matter more than Cycle 1's
+numbers suggested.
+
+### The standard comparison story is now Sleepy Hollow
+
+Locked. Every home-versus-Runpod measurement from here uses this book.
+
+| Field | Value |
+|---|---|
+| Book | *The Legend of Sleepy Hollow* |
+| Author | Washington Irving |
+| Source | Project Gutenberg ebook #41 |
+| Source words | 12,214 |
+| Stored words | 12,187 (99.78% retention) |
+| Pages | 20 |
+| Plates | 9–10 at `lavish` (9 in the measured run) |
+| Renders | 16 (9 plates + 6 portraits + 1 cover) |
+| Scriptorium book id | `pg-41` |
+| Bake settings | `lavish`, `images_per_scene: 1`, portraits on, portrait review off, `oil-painting`, era `1790s Hudson Valley` |
+
+It replaces *The Yellow Wallpaper*, which is **superseded, not deleted** — its
+numbers below are the evidence for the 7.6 s constant and remain citable as such.
+The reason for the change is the plate count: the brief asked for a story yielding
+8–12 plates, Yellow Wallpaper produced 5 and structurally could not do better, and
+Sleepy Hollow produces 9–10 with 4 of them chosen by content rather than spacing.
+
 ### Tooling versions these numbers came from
 
 | Tool | Version |
@@ -94,7 +341,17 @@ every remedy the CLI itself suggests requires extracting the plaintext key.
 
 ## 2026-08-17 — Cycle 1
 
-### The standard comparison story
+### The standard comparison story — SUPERSEDED 2026-08-17 by `pg-41`
+
+> **Superseded in Cycle 2.** The standard comparison story is now *The Legend of
+> Sleepy Hollow* (`pg-41`) — see "The standard comparison story is now Sleepy
+> Hollow" above. The reason is the plate count: the brief asked for a story
+> yielding 8–12 plates and this one yields 5, for structural reasons given below.
+>
+> Everything in this section is still **correct and still cited.** The 7.615 s
+> warm render median measured here is one of the four independent measurements
+> that establish the 7.6 s per-plate constant, and the Runpod comparison rests on
+> it. Kept verbatim rather than rewritten.
 
 Every home-vs-Runpod measurement from here on uses the same book, so the
 numbers stay comparable across cycles.

@@ -1,0 +1,104 @@
+{
+  "t_start": "2026-08-17T17:19:34.070988+00:00",
+  "t_end": "2026-08-17T17:26:02.696663+00:00",
+  "book_id": "pg-41",
+  "request": {
+    "source": {
+      "kind": "gutenberg",
+      "gutenberg_id": 41,
+      "title": "The Legend of Sleepy Hollow",
+      "author": "Irving, Washington"
+    },
+    "bake": {
+      "style_id": "oil-painting",
+      "density_preset": "lavish",
+      "images_per_scene": 1,
+      "era": "1790s Hudson Valley",
+      "portraits_enabled": true,
+      "portrait_review": false,
+      "title": "The Legend of Sleepy Hollow",
+      "author": "Irving, Washington"
+    }
+  },
+  "transitions": [
+    {
+      "at": "2026-08-17T17:19:34.693172+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-17T17:19:34.695695+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-17T17:19:37.700061+00:00",
+      "state": "mentions_running"
+    },
+    {
+      "at": "2026-08-17T17:20:42.807275+00:00",
+      "state": "mentions_done"
+    },
+    {
+      "at": "2026-08-17T17:20:47.814096+00:00",
+      "state": "cast_running"
+    },
+    {
+      "at": "2026-08-17T17:21:08.850059+00:00",
+      "state": "cast_done"
+    },
+    {
+      "at": "2026-08-17T17:21:09.855956+00:00",
+      "state": "cast_approved"
+    },
+    {
+      "at": "2026-08-17T17:21:13.861397+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-17T17:22:21.970674+00:00",
+      "state": "ledger_done"
+    },
+    {
+      "at": "2026-08-17T17:22:26.977296+00:00",
+      "state": "selected"
+    },
+    {
+      "at": "2026-08-17T17:22:31.985639+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-17T17:23:04.038553+00:00",
+      "state": "prompts_draft"
+    },
+    {
+      "at": "2026-08-17T17:23:05.045661+00:00",
+      "state": "approved"
+    },
+    {
+      "at": "2026-08-17T17:23:09.051334+00:00",
+      "state": "portraits_rendering"
+    },
+    {
+      "at": "2026-08-17T17:24:11.151893+00:00",
+      "state": "portraits_review"
+    },
+    {
+      "at": "2026-08-17T17:24:12.155740+00:00",
+      "state": "rendering"
+    },
+    {
+      "at": "2026-08-17T17:25:57.642423+00:00",
+      "state": "rendered"
+    },
+    {
+      "at": "2026-08-17T17:26:02.696493+00:00",
+      "state": "published"
+    }
+  ],
+  "gates": {
+    "cast_s": 0.0014045120042283088,
+    "approve_s": 0.007294887996977195,
+    "total_s": 0.009
+  },
+  "final_state": "published",
+  "plate_count": 9
+}
