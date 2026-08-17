@@ -20,12 +20,18 @@ PAUSE
 .runpod/
 **/config.toml
 
-# Measurement working files. Journal snapshots can contain arbitrary log text;
-# the derived JSON and the FINDINGS.md tables are what get committed.
-/runs/
+# Raw journal snapshots: bulky, and they contain arbitrary log text from every
+# service on the machine. The derived timing JSON and run logs under runs/ ARE
+# committed — they are the evidence behind FINDINGS.md.
+/runs/**/journal/
+/runs/**/*.journal.json
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# The flash CLI drops this into whatever directory it is invoked from, on any
+# command including --version.
+.flash/

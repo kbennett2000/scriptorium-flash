@@ -1,0 +1,103 @@
+{
+  "t_start": "2026-08-17T15:32:34.722562+00:00",
+  "t_end": "2026-08-17T15:37:24.115108+00:00",
+  "book_id": "pg-1952",
+  "request": {
+    "source": {
+      "kind": "gutenberg",
+      "gutenberg_id": 1952,
+      "title": "The Yellow Wallpaper",
+      "author": "Gilman, Charlotte Perkins"
+    },
+    "bake": {
+      "style_id": "oil-painting",
+      "density_preset": "lavish",
+      "images_per_scene": 1,
+      "era": "1890s New England",
+      "portraits_enabled": true,
+      "portrait_review": false,
+      "title": "The Yellow Wallpaper",
+      "author": "Gilman, Charlotte Perkins"
+    }
+  },
+  "transitions": [
+    {
+      "at": "2026-08-17T15:32:35.211642+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-17T15:32:35.214620+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-17T15:32:40.228931+00:00",
+      "state": "mentions_running"
+    },
+    {
+      "at": "2026-08-17T15:33:20.332049+00:00",
+      "state": "mentions_done"
+    },
+    {
+      "at": "2026-08-17T15:33:25.339038+00:00",
+      "state": "cast_running"
+    },
+    {
+      "at": "2026-08-17T15:33:44.371438+00:00",
+      "state": "cast_done"
+    },
+    {
+      "at": "2026-08-17T15:33:45.385498+00:00",
+      "state": "cast_approved"
+    },
+    {
+      "at": "2026-08-17T15:33:49.391299+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-17T15:34:28.458818+00:00",
+      "state": "ledger_done"
+    },
+    {
+      "at": "2026-08-17T15:34:33.465714+00:00",
+      "state": "selected"
+    },
+    {
+      "at": "2026-08-17T15:34:38.472665+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-17T15:34:58.503484+00:00",
+      "state": "prompts_draft"
+    },
+    {
+      "at": "2026-08-17T15:34:59.507054+00:00",
+      "state": "approved"
+    },
+    {
+      "at": "2026-08-17T15:35:03.512921+00:00",
+      "state": "portraits_rendering"
+    },
+    {
+      "at": "2026-08-17T15:36:08.625742+00:00",
+      "state": "portraits_review"
+    },
+    {
+      "at": "2026-08-17T15:36:09.628885+00:00",
+      "state": "rendering"
+    },
+    {
+      "at": "2026-08-17T15:37:18.973955+00:00",
+      "state": "rendered"
+    },
+    {
+      "at": "2026-08-17T15:37:24.114956+00:00",
+      "state": "published"
+    }
+  ],
+  "gates": {
+    "cast_s": 0.012283577001653612,
+    "approve_s": 0.0033271870051976293,
+    "total_s": 0.016
+  },
+  "final_state": "published"
+}

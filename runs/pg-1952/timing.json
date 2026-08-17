@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "book_id": "pg-1952",
+  "collected_at": "2026-08-17T15:39:15.242087+00:00",
+  "window": {
+    "start": "2026-08-17T15:32:34.722562+00:00",
+    "end": "2026-08-17T15:37:24.115108+00:00",
+    "source": "driver"
+  },
+  "wall_s": 289.39,
+  "gates": {
+    "cast_s": 0.012283577001653612,
+    "approve_s": 0.0033271870051976293,
+    "total_s": 0.016,
+    "source": "driver"
+  },
+  "machine_time_s": 289.38,
+  "buckets": {
+    "text_steps_s": 82.64,
+    "image_rendering_s": 94.79,
+    "model_loading_s": 39.71,
+    "orchestration_s": 72.25
+  },
+  "gross": {
+    "text_including_model_load_s": 97.81,
+    "image_including_model_load_s": 119.33
+  },
+  "model_loading_detail": {
+    "ollama_s": 15.17,
+    "ollama_cold_requests": 1,
+    "sdxl_s": 24.54,
+    "sdxl": {
+      "warm_render_median_s": 7.615,
+      "warm_render_count": 6,
+      "full_cold_after_free": {
+        "n": 1,
+        "penalty_s": 10.565,
+        "total_s": 10.56
+      },
+      "intra_phase_restage": {
+        "n": 5,
+        "penalty_s": 2.795,
+        "total_s": 13.97
+      }
+    },
+    "gpu_free_events": 4,
+    "text_model_unload_events": 3
+  },
+  "text_detail": {
+    "calls_counted": 33,
+    "by_transform": {
+      "cast-mentions": {
+        "n": 11,
+        "sum_s": 34.55,
+        "median_s": 1.869
+      },
+      "cast-canonicalize": {
+        "n": 6,
+        "sum_s": 14.08,
+        "median_s": 1.639
+      },
+      "scene-update": {
+        "n": 11,
+        "sum_s": 34.22,
+        "median_s": 2.72
+      },
+      "illustration-prompt": {
+        "n": 5,
+        "sum_s": 14.95,
+        "median_s": 1.971
+      }
+    },
+    "non_200_requests": 0,
+    "artifact_counts": {
+      "cast-mentions": 11,
+      "scene-update": 11,
+      "cast-canonicalize": 6
+    }
+  },
+  "image_detail": {
+    "renders_in_window": 12,
+    "renders_matched": 12,
+    "renders_unattributed": 0,
+    "plates_with_render_timestamp": 12,
+    "plates_selected": 5,
+    "plates_reattempted": 0,
+    "pair_gap_p50_s": 0.518,
+    "pair_gap_max_s": 0.578,
+    "derivative_time_s": 5.47
+  },
+  "orchestration_detail": {
+    "derivatives_s": 5.47,
+    "idle_between_phases_s": 36.21,
+    "idle_gaps": 11,
+    "runner_tick_s": 5.0,
+    "unexplained_s": 30.57
+  },
+  "integrity": {
+    "counts_match_artifacts": true,
+    "residual_non_negative": true,
+    "foreign_transforms_in_window": [],
+    "warnings": []
+  }
+}
