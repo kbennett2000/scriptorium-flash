@@ -22,6 +22,142 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — Where the billing documentation leaves you guessing
+
+Answering one question — does an idle Flash app with zero workers bill anything —
+took reading five pages, and the answer is on none of the two you would look at
+first. The answer itself is in [FINDINGS.md](FINDINGS.md). What follows is what
+the documentation did to get there.
+
+Three gaps, in descending order of how much money a reader could lose to them.
+Draft issue text for each; **nothing has been filed.**
+
+### Gap 1 — the serverless pricing page never says container disk needs a worker
+
+`docs.runpod.io/serverless/pricing` lists three cost components. One of them is:
+
+> | **Container disk** | Worker storage (5-min intervals) | ~$0.10/GB/month |
+
+That is the whole entry. A standalone line item, a per-month rate, and a
+parenthetical implying a recurring meter. Flash's default container disk is 64 GB
+(`flash/reference/api.md:58`, `containerDiskInGb=64`), so a reader who stops at
+this page reasonably concludes that a deployed app accrues about **$6.40 a month
+forever**, and tears it down to avoid that.
+
+The correction is on a page they have no reason to open,
+`serverless/storage/overview`: container disk is "Temporary storage that exists
+only while a worker is running", and its cost is "included in the worker's running
+cost." Not a separate meter at all.
+
+> **Draft issue — Title:** Serverless pricing page implies container disk bills
+> independently of workers; it does not
+>
+> **Page:** `docs.runpod.io/serverless/pricing`
+>
+> The cost-components table lists **Container disk** as its own line at
+> ~$0.10/GB/month with the qualifier "Worker storage (5-min intervals)", and the
+> page never states whether that charge requires a worker to exist. Since Flash
+> defaults to a 64 GB container disk, a reader of only this page concludes a
+> deployed, idle, scaled-to-zero endpoint accrues roughly $6.40/month.
+>
+> `serverless/storage/overview` contradicts that reading — container disk "exists
+> only while a worker is running" and its cost is "included in the worker's
+> running cost" — but a reader comparing deployment costs goes to the pricing
+> page, not the storage page.
+>
+> **Suggestion:** add one clause to the container-disk row, e.g. "billed only
+> while a worker is running; nothing accrues at zero workers", and define what
+> "(5-min intervals)" means. Right now that parenthetical is the only text on the
+> subject and it is undefined.
+
+### Gap 2 — model download time is exempted from billing, image pull is not addressed
+
+`serverless/endpoints/model-caching` is explicit and welcome: "You aren't billed
+for worker time while your model is being downloaded", and it holds even on a
+cache miss.
+
+But `serverless/development/optimization` names **two** separate cold-start
+metrics — "Initialization time: Downloading Docker image" and "Cold start time:
+Loading model into GPU memory" — and no page says whether the first one is billed.
+For a container carrying an SDXL stack, image pull is a large fraction of cold
+start, so this is not a rounding question.
+
+> **Draft issue — Title:** Docs exempt model download time from billing but never
+> say whether Docker image pull time is billed
+>
+> `serverless/endpoints/model-caching` states you are not billed for model
+> download time. `serverless/development/optimization` treats "Initialization
+> time: Downloading Docker image" as a metric distinct from "Cold start time:
+> Loading model into GPU memory". Neither page, nor `serverless/pricing`, says
+> whether image pull falls inside the billable "start time" phase.
+>
+> Since the docs went out of their way to carve out model downloads, the silence
+> on image pulls reads as deliberate — but a reader cannot tell whether it is
+> billed, and the answer changes the cost of every cold start on a large image.
+>
+> **Suggestion:** state it either way on `serverless/pricing`, next to the
+> three billable phases.
+
+### Gap 3 — the skills contradict themselves on whether a warm worker bills
+
+This one is not a gap but a straight conflict, which is worse: one of the two is
+simply wrong, and a reader has no way to tell which.
+
+`runpod/golden-paths/15-monitor-and-debug.md:70-76` gives a worker-state billing
+table:
+
+> | `idle` / `ready` | up, waiting for work | **no (idle)** |
+
+`runpod/golden-paths/13-autoscaling-tuning.md:229` says the opposite:
+
+> `idle`/`ready` = **warm & billed** (during idle timeout)
+
+and `13-autoscaling-tuning.md:45` reinforces it, calling idle timeout a knob where
+"↑ = fewer cold starts on bursty traffic, **more idle $**".
+
+The official documentation sides with `13`: `serverless/endpoints/endpoint-configurations`
+says "You're billed during idle time, but the worker remains warm for immediate
+processing", and `serverless/pricing` lists the idle-timeout tail as one of three
+billable phases.
+
+**So `15-monitor-and-debug.md:73` is wrong**, and it is wrong in the expensive
+direction. An agent that trusts it concludes a long `idle_timeout` is free and
+sets it high. At the 24 GB tier's $0.69/hr, a 300-second idle timeout on a bursty
+workload is real money spent on an idle GPU.
+
+> **Draft issue — Title:** Two golden paths give opposite answers on whether
+> `idle`/`ready` workers are billed
+>
+> `runpod/golden-paths/15-monitor-and-debug.md:73` lists `idle`/`ready` as **not**
+> billed. `runpod/golden-paths/13-autoscaling-tuning.md:229` lists the same states
+> as "warm & billed (during idle timeout)", and `:45` describes idle timeout as a
+> cost knob.
+>
+> `docs.runpod.io/serverless/endpoints/endpoint-configurations` ("You're billed
+> during idle time") and `serverless/pricing` (idle-timeout tail is one of three
+> billable phases) both support `13`, which makes `15` incorrect.
+>
+> The error favours overspending: a reader who believes idle is free will raise
+> `idle_timeout` to avoid cold starts.
+>
+> **Suggestion:** correct the table in `15-monitor-and-debug.md` to mark
+> `idle`/`ready` as billed for the duration of the idle timeout, and cross-link
+> the pricing page's three billable phases.
+
+### One more thing, not a gap but worth saying
+
+The **skills' public-endpoint model list is stale, and stale in a way that costs
+money.** `runpod/golden-paths/11-public-endpoints.md:43-52` is dated "as of
+2026-07-13" and offers exactly two text models, `qwen3-32b-awq` and `granite-4`,
+both at a single blended "$10.00 / 1M tokens" with no input/output split. The live
+catalogue has considerably more, including one at **$0.50/1M** — a twentieth of
+what the skill recommends — and the Kimi models publish separate input and output
+rates. An agent following the skill would pick a model 20× more expensive than
+necessary and would model its costs with the wrong rate shape. Dated content
+presented as a table is read as a table.
+
+---
+
 ## 2026-08-17 — The two CLIs do not share the credential file they share
 
 Cycle 2 opened by checking that both Runpod command-line tools can read the

@@ -337,6 +337,67 @@ one file, two formats".
 is done once, interactively, in a browser. No workaround was attempted, because
 every remedy the CLI itself suggests requires extracting the plaintext key.
 
+### Does an idle Flash app with zero workers bill anything?
+
+**No — provided no network volume is attached and minimum workers is 0.**
+
+The question was asked specifically about container storage, because Runpod's
+serverless pricing page lists container disk as its own cost line with a
+"(5-min intervals)" qualifier, which reads like something that accrues on a timer
+whether or not anything is running. It does not.
+
+**The decisive sentence is on a different page from the price.**
+`docs.runpod.io/serverless/storage/overview` describes container disk as
+"Temporary storage that exists only while a worker is running", and gives its cost
+as "**included in the worker's running cost**". So container storage is not a
+separate meter that outlives the worker; it is part of the worker's per-second
+charge. At zero workers there is no worker cost, so there is no container storage
+cost, because there is no container.
+
+Two further statements agree:
+
+- `docs.runpod.io/serverless/workers/overview` — flex workers "cost nothing when
+  not in use."
+- `docs.runpod.io/pods/pricing` — the only Runpod table that says it outright:
+  container disk is "**Not charged**" on a stopped Pod. Network volume, in the same
+  table, costs the same stopped or running.
+
+**On the five-minute interval specifically**, there are two different statements
+and conflating them is the trap:
+
+1. `docs.runpod.io/accounts-billing/billing` — "Billing runs every 5 minutes, and
+   charges are deducted continuously based on the resources you have running."
+   That is the account-wide ledger sweep, and it is scoped to *running* resources.
+   At zero workers the sweep finds nothing to charge.
+2. `docs.runpod.io/serverless/pricing`, container-disk row — "Worker storage
+   (5-min intervals)". That parenthetical is the entire text on the subject, and it
+   is never defined anywhere.
+
+**So container storage's 5-minute billing does not apply at zero workers, because
+container storage does not exist at zero workers.**
+
+**The one thing that does bill at idle is a network volume.** Charged continuously,
+stopped or running, at $0.07/GB/month under 1 TB. Flash's `NetworkVolume` defaults
+to 100 GB, so attaching one would burn about **$7.00 a month** whether or not a
+single request ever arrived. That is why the production image-generation app fetches
+its weights at build time instead of mounting them.
+
+**Decision: leave the app deployed.** Tearing it down buys nothing and costs a
+rebuild.
+
+**The empirical half is not done, and the answer above is documentary only.** The
+brief asked for confirmation against the account's real billing records after a
+deployment. Nothing has been deployed, because `flash` cannot authenticate (above),
+so there is no idle window to measure. What the check would look for is recorded
+now so it can be run without re-deriving it:
+
+> If Flash's default 64 GB container disk *were* billed at zero workers,
+> $0.10/GB/month would accrue **$0.0089/hr** — so a three-hour idle window should
+> show about **$0.027** against `runpodctl billing serverless`, which is clearly
+> distinguishable from $0.00. Read `runpodctl billing serverless` and
+> `runpodctl billing network-volume` at deploy time and again after the window,
+> and record the achieved idle duration alongside the result.
+
 ---
 
 ## 2026-08-17 — Cycle 1
