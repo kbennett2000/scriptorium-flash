@@ -93,6 +93,54 @@ stores is scoped `read:packages` only, so a leak of Runpod's copy cannot publish
 > **Suggestion:** add `--password-stdin`, matching `docker login`, and warn when
 > `--password` is used.
 
+### `flash build` imports every `.py` in the directory, and `.gitignore` is the only way out
+
+`flash build` failed on an app it should not have cared about:
+
+```
+Failed to load:
+  verify_port.py: ModuleNotFoundError: No module named 'numpy'
+```
+
+`verify_port.py` is a local development tool. It is not the app, not imported by
+the app, and not deployed. But Flash imports every `.py` file in the project
+directory to discover `Endpoint` objects, so a module-level `import numpy` in a
+file that has nothing to do with the deployment fails the whole build — because
+the flash CLI's own environment has no numpy, and no reason to.
+
+**The escape hatch used to be `.flashignore`, and it was removed in v1.4.**
+`cli/utils/ignore.py:53-59` still warns if it finds one:
+
+> `.flashignore` is no longer supported; patterns are now built-in. Move any
+> custom patterns to `.gitignore` and delete `.flashignore`.
+
+So the only remaining way to keep a file out of the build is to put it in
+`.gitignore`, which conflates two unrelated things: "not in version control" and
+"not part of this app". A checked-in tool that lives beside the app cannot be
+excluded without untracking it.
+
+Worked around by deferring the numpy and PIL imports into `main()`, which is the
+smaller change. Recorded because the failure mode is confusing — the error names
+a file the user was not deploying, for a dependency the app does not have.
+
+> **Draft issue — Title:** `flash build` imports every `.py` in the project
+> directory, and since v1.4 the only way to exclude one is `.gitignore`
+>
+> Flash imports each `.py` file under the project directory to discover
+> `Endpoint` objects. A module-level import in an unrelated local script — a
+> test, a development tool — fails the build with `Failed to load: <file>:
+> ModuleNotFoundError`, even though the file is not part of the app and is never
+> deployed.
+>
+> `.flashignore` was removed in v1.4 (`cli/utils/ignore.py:53-59`), and the
+> suggested replacement is `.gitignore`. That conflates "not in version control"
+> with "not part of the app": excluding a checked-in helper script requires
+> untracking it.
+>
+> **Suggestion:** treat a failed import of a file that declares no `Endpoint` as
+> a warning rather than an error, or restore a build-scope ignore file separate
+> from `.gitignore`.
+
 ### Credit: `--build-context` and a bind mount solved the slow part cleanly
 
 Not a Runpod feature, but worth recording because it changed the shape of the
