@@ -23,19 +23,32 @@ Rules for entries:
 |---|---|---|---|
 | 2026-08-17 | Cycle 2, entire cycle — read-only account queries only | $0.00 | `runpodctl billing {pods,serverless,network-volume}`, all-time window, all return `[]` |
 | 2026-08-17 | Cycle 3, task 1 — `hello-flash` deployed, 4 requests, deleted after 458 s | **$0.0066245833** | `clientBalance` $49.9945861833 → $49.9879616000, settled and re-read |
+| 2026-08-17 | Cycle 3, task 3 — 26 hosted text-model calls across two models, plus parameter and schema isolation | **$0.0838488300** | `clientBalance` $49.9879616000 → $49.9041127700; cross-checked against the endpoints' own `cost` fields |
 
-**Total Runpod spend to date: $0.0066245833**
+**Total Runpod spend to date: $0.0904734133**
 
 Cycle 2 spent nothing: all three billing categories returned `[]` over an
 all-time window and `clientBalance` never moved.
 
-**Cycle 3's spend is verified against the balance, not against the billing
-records, and that is a change forced by the platform.** `runpodctl billing
-serverless` returns `[]` over both today's window and an all-time window despite
-a charge that demonstrably occurred. For serverless usage at this scale the
-billing-history API reports nothing, so `clientBalance` read to ten decimal
-places is the instrument this ledger uses. Where the billing history has anything
-to add, it is quoted alongside.
+**Two different instruments are needed for Cycle 3's spend, because neither one
+works everywhere.**
+
+*Serverless* spend has to be read off the balance. `runpodctl billing serverless`
+returns `[]` over both today's window and an all-time window despite a charge
+that demonstrably occurred, so the billing-history API cannot corroborate
+anything at this scale.
+
+*Public-endpoint* spend is the opposite: the endpoint's own `cost` field in each
+response is exact — `total_tokens ×` the published rate, verified to the cent on
+two models — while the balance is a poor instrument for it because **it lags
+charges by several minutes.**
+
+That lag caused a wrong number earlier in this cycle. A reading taken sixty
+seconds after the last call, and confirmed "stable", reported roughly a third of
+the real spend and supported a confident claim that this account was billed 3.26×
+under list price. It is not; there is no discount. A stable balance reading is
+not a settled one, and the only safe balance comparisons in this file are the
+ones taken minutes apart with nothing running in between.
 
 Cycle 2's gates were never reached, because `flash` could not authenticate.
 Cycle 3's are live.
@@ -173,6 +186,194 @@ Until then this is recorded as an open question, not an answer, and **draft issu
 3 stays unfiled** — the measurement it was waiting for now points the opposite
 way from the draft, which is precisely the case the cycle rules say must not be
 filed.
+
+### Hosted text models: 26 real calls, 0 clean parses, and a fixable reason
+
+The question was whether moving Scriptorium's text steps — 41.7% of a `pg-41`
+bake and its largest bucket — to a Runpod **public endpoint** is a URL swap or a
+bigger change.
+
+**It is a bigger change. It is also achievable, and the blocker is specific
+enough to name.**
+
+Home does not ask a model politely for JSON. `text-transform-service/src/tts/llm.py`
+passes each transform's full JSON Schema to Ollama's `format` field, which is
+grammar-constrained decoding — the model *cannot* emit anything off-schema. The
+question was whether any equivalent exists on a public endpoint. No Runpod page
+documents one.
+
+Test: the real `cast-mentions` transform v0.3.0, imported from the running
+text-transform-service source rather than copied, against ten real `pg-41`
+pages. A parse is clean only if the pipeline's own `_attempt_reason()` accepts
+it — `json.loads` **and** `jsonschema.validate` against the transform's schema.
+
+#### The catalogue moved under us mid-cycle
+
+Cycle 2 enumerated seven priced text endpoints from the documentation. Live:
+
+| Slug | Documented in | Result |
+|---|---|---|
+| `cogito-671b-v2-1-fp8-dynamic` | `docs.runpod.io/public-endpoints/models/cogito-671b` | **404** |
+| `qwen3-32b` | the live reference page | **404** |
+| `granite-4` | the live reference page | **404** |
+| `moonshot-kimi` | — | 200 → `kimi-k2.6`, `kimi-k2.7-code`, `kimi-k3` |
+| `qwen3-32b-awq` | *not on the reference page* | 200 → `Qwen/Qwen3-32B-AWQ` |
+
+**Cogito was priced in Cycle 2 at $0.50/1M and was gone from the catalogue the
+same day.** It was this cycle's chosen model on the strength of that price — 20×
+cheaper than the alternatives — and it now returns `endpoint not found`.
+
+That is a production risk, not a documentation nit. A per-token dependency whose
+cheapest model can be withdrawn between one day and the next has no price floor
+a cost model can rest on, and the withdrawal is silent: a 404 at request time is
+the first notice. Anything built on a public endpoint needs a fallback model and
+an alerting path for `404`, which is work that a "URL swap" framing hides.
+
+**The reference page also conflates two different identifiers.** It lists
+"model slugs" in one column, but `kimi-k2.6` is a *model id* passed in the
+request body, and the *endpoint slug* that serves it is `moonshot-kimi`. Using
+the documented value as a slug returns 404. Two of the three text slugs the page
+does list are dead, and the one working Qwen endpoint is not on it.
+
+#### Neither model returned anything the pipeline could parse
+
+| | `kimi-k2.6` | `Qwen/Qwen3-32B-AWQ` |
+|---|---|---|
+| Calls | 10 | 2 |
+| HTTP 200 | 10 | 2 |
+| **Clean parses** | **0** | **0** |
+| Latency median | **13.106 s** | 27.9 s and 59.3 s |
+| Cost | $0.040734 | $0.039080 |
+
+Home's `cast-mentions` median is **2.877 s**. The hosted models are **4.5× to
+20× slower per call** on the identical prompt.
+
+**They failed in two different ways, and neither is "the model is bad".**
+
+`kimi-k2.6` is a reasoning model. Every one of the ten calls returned
+`finish_reason: length` with **699 of its 700 output tokens spent on
+`reasoning_content` and zero characters of `content`**. Home's `num_predict` of
+700 is not a budget this model can work inside — it thinks past it every time,
+and the account pays for all 7,000 wasted tokens.
+
+`Qwen/Qwen3-32B-AWQ` emits its chain of thought **into `content`** as a `<think>`
+block when nothing constrains it, so the response fails at character 1. Of two
+calls, one produced JSON missing a required property and one produced 3,036
+characters that were not JSON.
+
+#### Structured output does exist, and it is undocumented
+
+No Runpod page mentions it. All four mechanisms work on the vLLM-backed
+endpoint, tested against a simple schema:
+
+| Parameter | Result |
+|---|---|
+| none | 200 — but `content` begins `<think>` |
+| `response_format: {type: json_object}` | **200** — `{"ok":true}` |
+| `response_format: {type: json_schema}` | **200** — `{"ok":true}` |
+| `response_format: {type: json_schema, strict: true}` | **200** — `{"ok":true}` |
+| `guided_json` (vLLM native) | **200** — `{"ok":true}` |
+
+So the constraint mechanism Scriptorium needs is available on
+`qwen3-32b-awq` — it is simply written down nowhere.
+
+#### But Scriptorium's actual schema does not compile
+
+Bisected one feature at a time, same endpoint, same prompt:
+
+| Schema | Result |
+|---|---|
+| array of strings | 200 |
+| + nested objects | 200 |
+| + `additionalProperties: false` | 200 |
+| + `maxItems` | 200 |
+| **+ `minLength` / `maxLength` on a string** | **HTTP 500 after 60.5 s** |
+| the real `cast-mentions` schema | **HTTP 500** |
+
+**String length bounds are the breaking feature.** The failure is an opaque
+`{"status":500,"title":"Internal Server Error"}` after a minute of apparent
+work — no diagnostic naming the schema, no hint that a constraint is
+unsupported.
+
+`cast-mentions`'s schema uses `minLength: 1` and `maxLength: 60` on `name`,
+`maxLength: 60` on aliases and `maxLength: 140` on descriptors.
+
+**So the migration is a specific, bounded piece of work**: send a wire schema
+with the string bounds stripped, keep the full schema for local validation after
+the response arrives. That is a change to text-transform-service, not a URL swap
+— but it is a day's work, not a rewrite.
+
+#### One more thing that returns 500: ordinary sampling parameters
+
+On `moonshot-kimi`, **`temperature` and `top_p` each cause HTTP 500**,
+independently. Isolated with minimal requests:
+
+| Body | Result |
+|---|---|
+| `messages` + `max_tokens` | 200 |
+| + system message | 200 |
+| + `temperature: 0.2` | **500** |
+| + `top_p: 0.8` | **500** |
+| + both | **500** |
+| `max_tokens: 700`, no sampling | 200 |
+
+Two of the most basic OpenAI parameters, on an endpoint advertised as
+OpenAI-compatible, with the same opaque error body. Home runs every transform at
+a deliberate `temperature` — `cast-mentions` at 0.2 — so this endpoint cannot
+reproduce home's sampling at all.
+
+#### Does per-token usage draw down the credit? Yes.
+
+Cycle 2 could not settle this and leaned on a $0.0054 shortfall as circumstantial
+evidence. Settled now: **the balance moves.** It fell from $49.9879616000 to
+$49.9078527700 across this task's calls. Runpod's credit pays for public-endpoint
+tokens, and Cycle 2's reading of that shortfall was right.
+
+#### Cost, and a correction to how it was measured
+
+**The endpoint's own `cost` field is exact.** It equals `total_tokens ×` the
+published rate, verified on both models — Kimi reported $0.040734 for 13,404 in
+and 7,000 out at $0.95/$4.00 per 1M, which is the list arithmetic to the cent.
+
+**An earlier reading in this cycle claimed the account was billed 3.26× under
+list price. That was wrong, and the error was in the method.** The probe read
+`clientBalance` sixty seconds after the last call and treated a stable reading as
+a settled one. Runpod's balance lags charges by several minutes, so an early read
+reports a fraction of the spend and then stops changing, which looks exactly like
+a settled number. Corrected: there is no discount, and the tool now reports the
+endpoint's `cost` field as authoritative with the balance quoted only as a
+lagging cross-check.
+
+**Extrapolated to one full `pg-41` bake** — 55 text calls (20 `cast-mentions`,
+20 `scene-update`, 9 `illustration-prompt`, 6 `cast-canonicalize`):
+
+| Model | Rate | Per full bake | Note |
+|---|---|---:|---|
+| `Qwen/Qwen3-32B-AWQ` | $10.00/1M blended | **$1.07** | the only one that can be constrained |
+| `kimi-k2.6` | $0.95 in / $4.00 out | **$0.22** | for 55 responses containing nothing |
+| Home `qwen3.5:9b` | — | **$0.00** | marginal; the GPU is already owned |
+
+Both are over-estimates: they scale `cast-mentions`, which carries the largest
+`num_predict` of the four transforms.
+
+#### Verdict
+
+**Moving the text steps is a bigger change than a URL swap.** Four things have to
+be true that are not true today, and only the first is really about code:
+
+1. The wire schema must drop `minLength`/`maxLength`, with full validation moved
+   after the response. Bounded work.
+2. `response_format` has to be sent on every call, because unconstrained output
+   is `<think>` prose and parses at 0%.
+3. The pipeline must tolerate a model catalogue that changes without notice, with
+   a fallback and a 404 alarm.
+4. Someone has to accept **$1.07 a book** against $0.00 at home, and **4.5–20×
+   the latency** on the step that is already the largest bucket in the bake.
+
+The image steps are the opposite case: a GPU Scriptorium does not own, doing work
+it cannot parallelise locally. The text steps are cheap and fast at home and get
+expensive and slow hosted. On this evidence **the text steps should stay local**,
+and that is a more useful answer than the one this cycle set out to confirm.
 
 ### The billing history API did not show a charge that demonstrably happened
 

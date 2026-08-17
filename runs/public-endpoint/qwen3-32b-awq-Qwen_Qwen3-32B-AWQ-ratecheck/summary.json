@@ -1,0 +1,65 @@
+{
+  "endpoint_slug": "qwen3-32b-awq",
+  "model": "Qwen/Qwen3-32B-AWQ",
+  "price_per_1m_in": 10.0,
+  "price_per_1m_out": 10.0,
+  "response_format_sent": false,
+  "transform": "cast-mentions v0.3.0",
+  "calls": 2,
+  "clean_parses": 0,
+  "latency_median_s": 59.33,
+  "latency_min_s": 27.883,
+  "latency_max_s": 59.33,
+  "prompt_tokens": 2611,
+  "completion_tokens": 1297,
+  "balance_before": 49.94693277,
+  "balance_after": 49.94693277,
+  "balance_delta": 0.0,
+  "pg41_extrapolation": {
+    "text_calls": 55,
+    "basis": "cast-mentions measured here, scaled to all 55 calls; an over-estimate because cast-mentions has the largest num_predict of the four transforms",
+    "input_tokens": 71802,
+    "output_tokens": 35668,
+    "cost_usd": 1.0747
+  },
+  "results": [
+    {
+      "page": "0001",
+      "status": 200,
+      "seconds": 59.32966204700642,
+      "finish_reason": "stop",
+      "usage": {
+        "completion_tokens": 597,
+        "prompt_tokens": 1241,
+        "prompt_tokens_details": null,
+        "total_tokens": 1838
+      },
+      "reported_cost": 0.01838,
+      "reasoning_chars": 2460,
+      "clean": false,
+      "reason": "schema: 'aliases' is a required property",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 118
+    },
+    {
+      "page": "0002",
+      "status": 200,
+      "seconds": 27.88305061199935,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "prompt_tokens": 1370,
+        "prompt_tokens_details": null,
+        "total_tokens": 2070
+      },
+      "reported_cost": 0.0207,
+      "reasoning_chars": 0,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 3036
+    }
+  ]
+}
