@@ -30,6 +30,7 @@ platform and talk about it for 20 minutes. The talk cites this repo.
 | [AI-ASSIST.md](AI-ASSIST.md) | How Runpod's own AI tooling performed — what it got right, what it got wrong. |
 | [docs/adr/](docs/adr/) | Architecture decision records. Start at [0001](docs/adr/0001-architecture.md). |
 | `hello-flash/` | The smallest Flash app that deploys and answers one request. |
+| [flash-imagegen/](flash-imagegen/) | The production plate renderer. Reproduces the home render stack exactly — verified pixel-identical. Built, not deployed. |
 | `tools/` | Measurement scripts. They read logs; they change nothing. |
 
 ## The one rule about numbers
