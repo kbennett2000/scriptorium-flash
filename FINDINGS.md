@@ -398,6 +398,105 @@ now so it can be run without re-deriving it:
 > `runpodctl billing network-volume` at deploy time and again after the window,
 > and record the achieved idle duration alongside the result.
 
+### Runpod's hosted per-token text models
+
+Runpod calls these **Public Endpoints**: models Runpod operates, billed per token,
+with nothing to deploy, no workers to scale, no cold start you own and nothing to
+tear down. Enumerated from the documentation, free. **No call was made** — see the
+end of this section.
+
+Base URL `https://api.runpod.ai/v2/{slug}`. Two request shapes: a native
+`/runsync` that wraps arguments in an `input` object, and an OpenAI-compatible
+`/openai/v1/chat/completions`.
+
+| Model | Model id | Input /1M | Output /1M |
+|---|---|---:|---:|
+| Cogito 671B v2.1 FP8 | `cogito-671b-v2-1-fp8-dynamic` | $0.50 blended | |
+| Moonshot Kimi k2.6 | `kimi-k2.6` | $0.95 | $4.00 |
+| Moonshot Kimi k2.7-code | `kimi-k2.7-code` | $0.95 | $4.00 |
+| Moonshot Kimi k3 | `kimi-k3` | $3.00 | $15.00 |
+| Qwen3 32B AWQ | `Qwen/Qwen3-32B-AWQ` | $10.00 blended | |
+| GPT-OSS 120B | `openai/gpt-oss-120b` | $10.00 blended | |
+| IBM Granite 4.0 | `granite-4-0-h-small` | $10.00 blended | |
+
+"Blended" means the documentation quotes one rate covering input and output
+together; only the Kimi models publish a split. Source:
+`docs.runpod.io/public-endpoints/reference` and the per-model pages under
+`docs.runpod.io/public-endpoints/models/`.
+
+Two documented facts that matter for cost modelling: **failed generations are not
+charged**, and there is **no idle cost**, because nothing is deployed.
+
+### Which of them could do Scriptorium's text steps
+
+The three text steps are `cast-mentions` (who is on this page), `scene-update`
+(what changed) and `illustration-prompt` (what a picture of it should show). All
+three send roughly a page of prose and expect short structured JSON back.
+
+Home does this with `qwen3.5:9b` at Q8_0 through Ollama. Measured on the `pg-41`
+baseline above: 55 calls, medians 1.791–2.946 s, `temperature` 0.2–0.5,
+`num_predict` 350–700, and input around 570–770 estimated tokens per call. That is
+an instruction-following job, not a reasoning-heavy one, so **none of these models
+is short of capability** — the choice is about price and output discipline.
+
+- **Cogito 671B v2.1** — $0.50/1M blended, 20× cheaper than the $10 tier. The
+  value pick.
+- **Qwen3 32B AWQ** — $10.00/1M, documented for "reasoning, instruction-following,
+  agent capabilities". Same model family as the one home already runs, which makes
+  it the most likely to behave similarly on prompts that were tuned against
+  `qwen3.5:9b`. That is worth something real when the prompts are not being
+  rewritten.
+- **Kimi k2.6** — $0.95 in / $4.00 out. Wins when output is short relative to
+  input, which is this workload's shape.
+
+**A rough cost sketch, from the baseline's measured token counts.** 55 calls at
+roughly 700 input and 300 output tokens is about 38,500 input and 16,500 output
+tokens per book. At Cogito's $0.50/1M blended that is **about $0.03 per book**. At
+the $10/1M tier it is **about $0.55 per book**. Both are estimates from published
+prices against measured call counts, not charges, and the token figures are
+Scriptorium's own estimator (`TOKENS_PER_WORD = 1.35`), not a tokenizer.
+
+**The gap that matters more than price.** No Runpod page documents JSON mode,
+`response_format`, or grammar-constrained decoding for public endpoints.
+Scriptorium's transforms need parseable JSON and currently get it from a local
+Ollama that can constrain output. Moving those steps to a public endpoint means
+relying on the prompt alone unless the OpenAI-compatible route happens to accept
+`response_format` undocumented. That is a functional risk, not a cost one, and it
+is the thing to test first.
+
+### Do the assignment credits cover per-token billing?
+
+**Not established from the documentation — and the documentation is the wrong place
+to settle it.** What exists:
+
+- Billing docs say credits "can only be used for Runpod services": a restriction
+  *to* Runpod, with no carve-out excluding any product line.
+- There is a first-class `get-public-endpoint-billing-history` REST endpoint, which
+  puts public-endpoint spend in the same billing-history family as pods, serverless
+  and volumes, implying one shared ledger.
+- But the single sentence enumerating what credits are spent on says "Pods,
+  Serverless endpoints, and storage" and omits public endpoints, and the word
+  "promotional" does not appear in the billing documentation at all.
+
+**The account itself is better evidence than the docs, and it points to yes.** The
+pre-spend baseline at the top of this cycle shows a balance $0.0054138167 below a
+round $50.00 with all three `runpodctl billing` categories empty over an all-time
+window. The one spend category `runpodctl` cannot report is per-token
+public-endpoint usage. If that shortfall is a public-endpoint charge, then this
+account's credit demonstrably pays for per-token billing.
+
+That is a strong lead, **not proof** — the alternative explanation is simply that
+the credit was never exactly $50.00. Closing it needs either the console's billing
+view or a `get-public-endpoint-billing-history` call.
+
+### The test call was not made
+
+It needs an `Authorization: Bearer` header, and the only way to build one here is
+to extract the plaintext key out of `~/.runpod/config.toml`. `runpodctl` has no
+subcommand that invokes a public endpoint, so there is no tool-mediated route that
+leaves the key unread. Deferred rather than worked around — the estimate stands at
+about $0.002 for two calls, which is not the reason it did not happen.
+
 ---
 
 ## 2026-08-17 — Cycle 1
