@@ -22,18 +22,23 @@ Rules for entries:
 | Date | What | Cost | Source |
 |---|---|---|---|
 | 2026-08-17 | Cycle 2, entire cycle — read-only account queries only | $0.00 | `runpodctl billing {pods,serverless,network-volume}`, all-time window, all return `[]` |
+| 2026-08-17 | Cycle 3, task 1 — `hello-flash` deployed, 4 requests, deleted after 458 s | **$0.0066245833** | `clientBalance` $49.9945861833 → $49.9879616000, settled and re-read |
 
-**Total Runpod spend to date: $0.00**
+**Total Runpod spend to date: $0.0066245833**
 
-Verified against the account's own billing records, not estimated: all three
-billing categories return `[]` over an all-time window, and `clientBalance` is
-**$49.9945861833** at the end of the cycle, unchanged to the last decimal place
-from the reading taken before the first command was run.
+Cycle 2 spent nothing: all three billing categories returned `[]` over an
+all-time window and `clientBalance` never moved.
 
-No spend gate was reached. Every billable step in Cycle 2 — the hello-world
-deployment, the hosted-model test call, and both image-app measurement passes —
-is blocked upstream of its gate by `flash` being unable to authenticate. Nothing
-was provisioned, so nothing could be charged.
+**Cycle 3's spend is verified against the balance, not against the billing
+records, and that is a change forced by the platform.** `runpodctl billing
+serverless` returns `[]` over both today's window and an all-time window despite
+a charge that demonstrably occurred. For serverless usage at this scale the
+billing-history API reports nothing, so `clientBalance` read to ten decimal
+places is the instrument this ledger uses. Where the billing history has anything
+to add, it is quoted alongside.
+
+Cycle 2's gates were never reached, because `flash` could not authenticate.
+Cycle 3's are live.
 
 ---
 
@@ -74,6 +79,135 @@ issue attributes it there.
 
 Draft issues 2 (container disk billing at zero workers) and 3 (whether an
 `idle`/`ready` worker bills) stay unfiled until their measurements land.
+
+### Hello-world: the first thing this project ever deployed
+
+One Flash app, `hello-flash`, unchanged from Cycle 2 — `GpuGroup.AMPERE_16`,
+`workers=(0, 1)`, `idle_timeout=60`, no dependencies, a 0.2 MB artifact of two
+files. It echoes its input. The point is the three numbers.
+
+| | Value |
+|---|---|
+| Endpoint id | `qb4qjquyist574` (first deploy) |
+| Deployed | 2026-08-17T19:41:35Z |
+| Deleted | 2026-08-17T19:49:13Z |
+| **Cold start — first request** | **31.387 s** |
+| **Warm request median** | **0.354 s** (n=3: 0.437, 0.320, 0.354) |
+| Worker | `d5571d1c3f08` |
+| **Verified cost** | **$0.0066245833** |
+
+Cold start is caller-observed wall clock on the first request: the whole
+exchange, which is what a caller actually waits for. All four calls returned 200.
+
+**Cost is verified against the account balance, and only against the balance,
+because the billing history could not corroborate it.** See "The billing history
+API did not show a charge that demonstrably happened" below.
+
+| | |
+|---|---|
+| `clientBalance` before | $49.9945861833 |
+| `clientBalance` after, settled | $49.9879616000 |
+| **Difference** | **$0.0066245833** |
+
+At the 16 GB tier's **$0.58/hr** — confirmed live on runpod.io/pricing during
+this cycle — that difference is **41.12 billed-equivalent seconds**.
+
+The estimate at the gate was $0.02–0.03 for roughly 90–150 s of worker life. The
+actual was **$0.0066**, about a quarter of the low end. The reason is in the next
+section, and it is the most useful thing this deployment produced.
+
+### Two separate claims about idle, and the pair is the finding
+
+These get stated apart because conflating them is how the wrong conclusion gets
+drawn, and Cycle 2 drew it from documentation alone.
+
+**Claim 1 — the platform claim: an endpoint at zero workers bills nothing.**
+Still believed, still consistent with everything measured. Nothing here
+contradicts it.
+
+**Claim 2 — the tool behaviour: `flash` does not give you zero workers.**
+`Endpoint(workers=(0, 1))` is documented as `(min, max)`, and this repo's entire
+scale-to-zero cost argument rests on it. What it actually deploys, read from the
+REST API:
+
+```
+workersMin: 0     workersMax: 1     workersStandby: 1
+```
+
+`workersStandby` is the API field behind what the console calls **active
+workers**, which `docs.runpod.io/serverless/endpoints/endpoint-configurations`
+describes as "Minimum number of workers that remain warm and ready at all times"
+and says "incur charges continuously, including when idle."
+
+**`runpodctl` does not report `workersStandby` at all.** Neither
+`runpodctl serverless list` nor `runpodctl serverless get <id>` includes the
+field, so nothing in the CLI would reveal it. It took a direct
+`GET https://rest.runpod.io/v1/endpoints` call to see it.
+
+**It reproduces.** A second, independent deploy of the same unchanged app
+produced `workersStandby: 1` again (endpoint `ivmpm73jnh01jw`, created
+2026-08-17T19:57:02Z).
+
+**Observed behaviour matches.** Across four minutes of polling with zero jobs
+ever queued, the worker never scaled to zero — it oscillated between `running`
+and `idle`/`ready` well past the 60-second idle timeout.
+
+So the honest statement is: **zero workers costs nothing, and `flash
+workers=(0, 1)` does not give you zero workers.** Either half alone is
+misleading.
+
+### What the 41.12 billed seconds does *not* mean
+
+The endpoint existed for **458 seconds** and billed the equivalent of **41.12
+seconds — 9.0% of its lifetime**. Caller-observed request time across all four
+calls was 32.498 s.
+
+**So the standby worker did not bill continuously**, and the reading that
+Cycle 2 took from the documentation — that a warm worker bills for every second
+it is warm — is not what this account was charged. That is a measurement against
+one short window, not a law, and what the remaining ~8.6 s covers is not yet
+pinned down. A longer window with the phases separated is running now; its result
+and the arithmetic go in the idle-billing section.
+
+Until then this is recorded as an open question, not an answer, and **draft issue
+3 stays unfiled** — the measurement it was waiting for now points the opposite
+way from the draft, which is precisely the case the cycle rules say must not be
+filed.
+
+### The billing history API did not show a charge that demonstrably happened
+
+`runpodctl billing serverless` returns `[]` — over today's window with hourly
+buckets, and over an all-time window with monthly buckets — while the account
+balance dropped $0.0066245833 for serverless work in that same period.
+
+That matters beyond bookkeeping. This project's rule is that every cent is
+verified against billing records. For serverless spend at this scale, **the
+billing-history API cannot do that job**, and the balance — read to ten decimal
+places — is the only instrument that works. Every cost in this cycle is therefore
+sourced to a balance delta, with the billing history quoted alongside as
+corroboration where it has any to offer.
+
+Whether the charge posts to the history later, or whether sub-cent serverless
+usage never appears there, is not yet established.
+
+### Three smaller things the deployment taught
+
+**`ready` does not mean ready.** The platform health route reported
+`workers: {idle: 1, ready: 1}` *before* the first request, and that request still
+paid the full 31.387 s cold start. A caller cannot use `ready` to predict
+latency.
+
+**`NVIDIA_VISIBLE_DEVICES` is worthless for identifying the card.** It returned
+the literal string `void`. This was going to be `flash-imagegen`'s only record of
+which GPU ran a plate, on a tier that can hand out more than one model of card.
+Fixed — the render handler now reads the device name from ComfyUI's
+`/system_stats` instead. Recorded here because the defect was ours and the
+evidence for it came from this deployment.
+
+**The endpoint is a load balancer, and the job counters stay at zero.**
+`jobs: {completed: 0, …}` never moved despite four successful requests, because
+load-balanced routes are not queue jobs. Anyone reading `completed` as "requests
+served" on a Flash LB endpoint will read zero forever.
 
 ---
 
