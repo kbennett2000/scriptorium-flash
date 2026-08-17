@@ -22,6 +22,104 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — Getting a private image onto Runpod
+
+Everything needed to deploy a private container image exists. None of it is
+written down together, and one essential field is not written down at all.
+
+### The field that makes it work is undocumented
+
+A private image needs Runpod to hold a registry credential, and the endpoint
+needs to reference it. `docs.runpod.io/flash/custom-docker-images` says only:
+
+> Configure Docker registry authentication in Runpod console for private images.
+
+It never says how the endpoint picks that credential up. The flash skill's
+`reference/api.md` documents `PodTemplate` with four fields —
+`containerDiskInGb`, `dockerArgs`, `ports`, `startScript` — and none of them is
+it.
+
+The answer is `PodTemplate(containerRegistryAuthId=...)`. It exists at
+`runpod_flash/core/resources/template.py:25` and is threaded into the deploy
+manifest at `cli/commands/build_utils/manifest.py:273-276`. It works. It is
+documented in neither the docs nor the skill, and was found by reading the SDK.
+
+This is a **draft issue**, unfiled, pending Kris's approval:
+
+> **Title:** `PodTemplate.containerRegistryAuthId` is required for private
+> images and is documented nowhere
+>
+> `docs.runpod.io/flash/custom-docker-images` tells the reader to "configure
+> Docker registry authentication in Runpod console for private images" but never
+> states how a Flash endpoint references the resulting credential. The
+> `PodTemplate` example on that page shows only `containerDiskInGb`.
+>
+> The mechanism is `PodTemplate(containerRegistryAuthId="<id>")`, present in the
+> SDK (`core/resources/template.py`) and honoured by the deploy manifest builder
+> (`cli/commands/build_utils/manifest.py`). Nothing in the documentation or in
+> the published `flash` agent skill mentions the field.
+>
+> **Suggestion:** add it to the `PodTemplate` reference and show it in the
+> private-image section of `flash/custom-docker-images`, alongside how to obtain
+> the id (`runpodctl registry list`, or the console).
+
+### `runpodctl registry create` has only one way in, and it is the wrong one
+
+```
+Flags:
+      --name string       registry auth name (required)
+      --password string   registry password (required)
+      --username string   registry username (required)
+```
+
+A registry password as a command-line argument lands in the process table and
+the shell history, and stays in both after the command finishes. There is no
+`--password-stdin`, no `--password-file`, and no prompt — which is notable
+because `docker login` has offered `--password-stdin` for years and warns when
+you use `--password`.
+
+This project did not use the command. The credential was created in the console
+instead and only its **id** read back with `runpodctl registry list`, which is
+not a secret. Least privilege applied on the other side too: the token Runpod
+stores is scoped `read:packages` only, so a leak of Runpod's copy cannot publish.
+
+> **Draft issue — Title:** `runpodctl registry create` accepts a registry
+> password only as a command-line flag
+>
+> The only interface is `--password <string>`, which puts a long-lived registry
+> credential in the process table and the shell history. There is no
+> `--password-stdin`, `--password-file`, or interactive prompt.
+>
+> **Suggestion:** add `--password-stdin`, matching `docker login`, and warn when
+> `--password` is used.
+
+### Credit: `--build-context` and a bind mount solved the slow part cleanly
+
+Not a Runpod feature, but worth recording because it changed the shape of the
+work. The five model files were already on the build machine. Docker's named
+build contexts let an optional local cache override a `FROM scratch` stage, so
+the same Dockerfile copies from disk when the cache is offered and downloads
+~11GB from HuggingFace when it is not. Staging took **127 s** instead of a long
+download, with the identical hash check on both paths.
+
+### The thing that actually saved money was not a Runpod tool at all
+
+The first build of the image **segfaulted on boot** and could never have served
+a request. It was caught by running the container on the machine that built it,
+which cost nothing. Had it gone straight to a Runpod endpoint, the finding would
+have been a paid cold start ending in a crash loop, diagnosed through worker
+logs.
+
+Runpod's own guidance points the other way. Cycle 1's audit noted that
+`runpod-usage/reference/development-loop.md:9` puts verification after
+deployment — `→ run/deploy → VERIFY with a real request → deliver → cost-guard +
+teardown` — and that no skill in the pack asks before spending money. A "boot
+the image locally first" step costs nothing and belongs ahead of the first
+deploy in that loop. Details of the crash itself are in
+[FINDINGS.md](FINDINGS.md); it was our defect, not Runpod's.
+
+---
+
 ## 2026-08-17 — The public-endpoint catalogue, and four opaque 500s
 
 Numbers in [FINDINGS.md](FINDINGS.md). This is what the documentation and the API

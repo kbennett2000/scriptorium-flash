@@ -13,27 +13,53 @@ Two settings are load-bearing for cost and are commented where they are set:
 `workers=(0, ...)` and the deliberate absence of `volume=`.
 """
 
-from runpod_flash import Endpoint, GpuGroup, PodTemplate
+import os
 
-# The image must be private: it carries model weights, including a LoRA whose
-# licence forbids redistribution. See MODELS.md.
-IMAGE = "REGISTRY_PLACEHOLDER/scriptorium-imagegen:sdxl-base-1.0"
+from runpod_flash import Endpoint, GpuType, PodTemplate
 
-# 24GB tier -- L4 / A5000 / RTX 3090 -- at $0.69/hr. Chosen as roughly comparable
-# in raw speed to the home RTX 5070, so the measured difference reflects the
-# platform rather than a hardware mismatch. GpuGroup picks the cheapest card in
-# the tier, so the handler reports which one actually ran and that goes in
-# FINDINGS.md beside the number.
-TIER = GpuGroup.AMPERE_24
+# Private: the image carries model weights, including a LoRA whose licence
+# forbids redistribution. See MODELS.md. Verified private after every push.
+IMAGE = "ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0"
+
+# Runpod needs its own credential to pull a private image. It is created in the
+# console (the CLI's only interface is `runpodctl registry create --password
+# <string>`, which would put a registry password in the process table and the
+# shell history) and referenced here by id. The id is not a secret; it is read
+# from the environment anyway so the deploy fails loudly rather than silently
+# pulling nothing when it is unset.
+#
+# `containerRegistryAuthId` is undocumented: it is absent from
+# `docs.runpod.io/flash/custom-docker-images`, which says only "configure Docker
+# registry authentication in Runpod console", and absent from the flash skill's
+# PodTemplate reference. It exists in the SDK and is threaded into the deploy
+# manifest, which is how it was found. See AI-ASSIST.md.
+REGISTRY_AUTH_ID = os.environ["RUNPOD_REGISTRY_AUTH_ID"]
+
+# The 24GB tier by card rather than by GpuGroup.AMPERE_24.
+#
+# That group is L4 / A5000 / RTX 3090 / MIG-24, and GpuGroup takes the cheapest
+# card available. An L4 is a very different machine from home's RTX 5070 for
+# SDXL, so drawing one would make the headline per-plate number a story about
+# card selection rather than about Runpod. Naming two comparable cards keeps the
+# comparison honest and still leaves two sources of supply, which matters --
+# every 24GB card currently reports stockStatus "Low".
+#
+# The handler reports which card actually ran, read from ComfyUI's
+# /system_stats, and FINDINGS.md quotes it beside the timing.
+TIER = [GpuType.NVIDIA_RTX_A5000, GpuType.NVIDIA_GEFORCE_RTX_3090]
 
 imagegen = Endpoint(
     name="scriptorium-imagegen",
     image=IMAGE,
     gpu=TIER,
 
-    # Scale to zero. An idle endpoint at zero workers bills nothing; a minimum
-    # of 1 bills continuously at the full hourly rate -- about $497/month on this
-    # tier -- and would defeat the entire cost argument.
+    # Scale to zero -- with a caveat measured this cycle. This produces
+    # workersMin 0 but ALSO workersStandby 1, so Flash holds one worker warm
+    # rather than truly scaling to zero, and neither runpodctl nor the SDK
+    # exposes a way to set standby to 0. Measured over 11 minutes on the 16GB
+    # tier, that warm worker billed nothing (FINDINGS.md), which is why this is
+    # a caveat and not a blocker -- but the endpoint is still torn down by name
+    # the moment a measurement pass finishes, rather than left up on trust.
     workers=(0, 1),
 
     # Seconds. The worker stays warm this long after a request, and that time IS
@@ -46,8 +72,12 @@ imagegen = Endpoint(
     # that would break the $0-at-idle result established in FINDINGS.md. The
     # weights live in the image instead.
 
-    # 64GB is the default and holds the ~11GB of weights with room to spare.
-    template=PodTemplate(containerDiskInGb=64),
+    # 64GB against a 17.66GB image that unpacks to roughly 24GB. Room to spare,
+    # and no network volume, so nothing here outlives the worker.
+    template=PodTemplate(
+        containerDiskInGb=64,
+        containerRegistryAuthId=REGISTRY_AUTH_ID,
+    ),
 
     flashboot=True,
     accelerate_downloads=True,

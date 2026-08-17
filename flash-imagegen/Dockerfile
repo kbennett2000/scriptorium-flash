@@ -77,6 +77,34 @@ RUN --mount=type=bind,from=modelcache,target=/modelcache \
 COPY workflow-sdxl-txt2img.json graph.py handler.py /opt/app/
 WORKDIR /opt/app
 
+# --- KNOWN DEFECT, worked around here; the real fix is Cycle 4 --------------
+#
+# Without this the container SEGFAULTS on boot, every time, before ComfyUI ever
+# serves a request. The fault is in `torch.jit.script` while importing kornia,
+# during ComfyUI's built-in node import.
+#
+# The cause is the interpreter, not the packages. Ubuntu 22.04's `python3.11`
+# is **3.11.0rc1** -- a 2022 release candidate. Home runs 3.11.15. kornia
+# (0.8.3), torch (2.11.0+cu128) and every other pinned version are identical on
+# both sides; only the Python differs, and only the container crashes.
+#
+# So the header of this file is wrong where it claims everything is pinned to
+# home: the interpreter was not. The proper fix is to install a real 3.11.15
+# (deadsnakes), which invalidates every layer below the apt install -- a full
+# ~11GB rebuild and re-push. Deferred to Cycle 4 as a deliberate, recorded
+# trade-off, not an oversight.
+#
+# What this costs in the meantime: TorchScript is off, while home runs with it
+# on. kornia is used in IP-Adapter image preprocessing and 7 of the 9 pg-41
+# plates condition on a reference portrait, so a low-order pixel difference is
+# possible in principle. tools/render_bench.py pixel-compares every returned
+# plate against the one home already rendered, so if it happens it is measured
+# and reported rather than assumed away.
+#
+# Placed last on purpose: an ENV here changes only the image config, so every
+# large layer above keeps its digest and an in-flight push is not wasted.
+ENV PYTORCH_JIT=0
+
 # ComfyUI in the background, then the Runpod handler. The handler waits for
 # ComfyUI to answer /system_stats and reports that wait separately as
 # model_load_s, so a cold start is never mistaken for a slow render.

@@ -410,6 +410,85 @@ evidence for it came from this deployment.
 load-balanced routes are not queue jobs. Anyone reading `completed` as "requests
 served" on a Flash LB endpoint will read zero forever.
 
+### The render container: built, and it did not work
+
+The image that carries the home render stack to a Runpod GPU.
+
+| | |
+|---|---|
+| Size | **17.66 GB** (`docker image inspect`) |
+| First build | **31 min 29 s** wall clock |
+| Model staging | **127.3 s** for all five files, copied and hash-verified |
+| ComfyUI boot, measured locally | **8.0 s** |
+
+Layer breakdown: models 10.8 GB, torch + ComfyUI requirements 8.48 GB, CUDA base
+1.05 GB, apt 173 MB, ComfyUI 144 MB, IP-Adapter nodes 6 MB.
+
+**The five model files came off this machine rather than off HuggingFace**, and
+that is safe because they are checked the same way either route. All five are
+present locally at the exact recorded sizes and SHA256s, so `fetch_models.py
+--from-dir` copied them in 127 s instead of pulling ~11 GB. A cached file that
+fails its hash is deleted and re-downloaded rather than trusted; that behaviour
+has its own test. Without `--build-context` the cache stage is empty and the
+build downloads exactly as before.
+
+**Do not trust `docker images` for the size.** It reports **41.7 GB** for this
+image — the containerd store counts the manifest and the unpacked snapshot
+separately. `docker image inspect` reports 17.66 GB, and the layer sum is
+24.07 GB uncompressed. Three numbers for one image; the middle one is the image.
+
+### The container segfaulted on boot, and a free local test caught it
+
+**The first build could not run at all.** Started locally on the home GPU, it
+died before serving anything:
+
+```
+Fatal Python error: Segmentation fault
+Stack (most recent call first):
+  File ".../torch/jit/_script.py", line 1262 in _script_impl
+  File ".../kornia/__init__.py", line 28 in <module>
+  File "/opt/ComfyUI/nodes.py", line 2510 in init_builtin_extra_nodes
+```
+
+**The cause is the interpreter, and it is our defect.** Ubuntu 22.04's
+`python3.11` package is **3.11.0rc1** — a release candidate from 2022. Home runs
+**3.11.15**. Every other version is identical across the two:
+
+| | Home | Container |
+|---|---|---|
+| Python | **3.11.15** | **3.11.0rc1** |
+| kornia | 0.8.3 | 0.8.3 |
+| torch | 2.11.0+cu128 | 2.11.0+cu128 |
+| torchvision | 0.26.0+cu128 | 0.26.0+cu128 |
+| scipy | 1.17.1 | 1.17.1 |
+| safetensors | 0.8.0 | 0.8.0 |
+
+Same packages, different interpreter, and only the container crashes — inside
+`torch.jit.script`, which does deep bytecode introspection and is exactly the
+kind of code an interpreter release candidate breaks.
+
+The Dockerfile's own header says everything is pinned to what home runs. The
+Python was not, and nothing in the build would have told us.
+
+**Worked around with `ENV PYTORCH_JIT=0`, which fixes it completely** — ComfyUI
+then boots in 8.0 s and reports its device correctly. The proper fix is a real
+3.11.15 from deadsnakes, which invalidates every layer below the apt install and
+costs a full rebuild and re-push. **Deferred to Cycle 4 as a recorded trade-off.**
+
+**What the workaround might cost, stated in advance rather than after.**
+TorchScript is off in the container and on at home. kornia is used in IP-Adapter
+image preprocessing, and 7 of the 9 `pg-41` plates condition on a reference
+portrait, so a low-order pixel difference is possible in principle.
+`tools/render_bench.py` pixel-compares every returned plate against the one home
+already rendered, so this is measured, not assumed.
+
+**The wider point is about where this was caught.** Nothing about this failure
+needed a Runpod worker to find. Running the container on the machine that built
+it costs nothing, and it turned what would have been a paid cold start ending in
+a crash loop into a twenty-minute local diagnosis. The pixel-fidelity check in
+Cycle 2 was built on the same principle: verify locally and free, before
+spending.
+
 ---
 
 ## 2026-08-17 — Cycle 2
