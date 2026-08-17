@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "book_id": "pg-75201",
+  "collected_at": "2026-08-17T15:39:15.505999+00:00",
+  "window": {
+    "start": "2026-08-13T23:19:15.748461+00:00",
+    "end": "2026-08-14T00:05:56.168053+00:00",
+    "source": "job_record"
+  },
+  "wall_s": 2800.42,
+  "gates": {
+    "cast_s": 0.0,
+    "approve_s": 0.0,
+    "total_s": 0.0,
+    "source": "absent"
+  },
+  "machine_time_s": 2800.42,
+  "buckets": {
+    "text_steps_s": 1236.47,
+    "image_rendering_s": 1083.79,
+    "model_loading_s": 263.47,
+    "orchestration_s": 216.69
+  },
+  "gross": {
+    "text_including_model_load_s": 1244.22,
+    "image_including_model_load_s": 1339.51
+  },
+  "model_loading_detail": {
+    "ollama_s": 7.75,
+    "ollama_cold_requests": 1,
+    "sdxl_s": 255.72,
+    "sdxl": {
+      "warm_render_median_s": 7.44,
+      "warm_render_count": 59,
+      "full_cold_after_free": {
+        "n": 1,
+        "penalty_s": 10.07,
+        "total_s": 10.07
+      },
+      "intra_phase_restage": {
+        "n": 85,
+        "penalty_s": 2.89,
+        "total_s": 245.65
+      }
+    },
+    "gpu_free_events": 4,
+    "text_model_unload_events": 3
+  },
+  "text_detail": {
+    "calls_counted": 484,
+    "by_transform": {
+      "cast-mentions": {
+        "n": 170,
+        "sum_s": 420.59,
+        "median_s": 2.262
+      },
+      "cast-canonicalize": {
+        "n": 36,
+        "sum_s": 63.72,
+        "median_s": 1.628
+      },
+      "scene-update": {
+        "n": 170,
+        "sum_s": 521.99,
+        "median_s": 3.035
+      },
+      "illustration-prompt": {
+        "n": 108,
+        "sum_s": 237.93,
+        "median_s": 2.122
+      }
+    },
+    "non_200_requests": 0,
+    "artifact_counts": {
+      "cast-mentions": 170,
+      "scene-update": 170,
+      "cast-canonicalize": 36
+    }
+  },
+  "image_detail": {
+    "renders_in_window": 147,
+    "renders_matched": 145,
+    "renders_unattributed": 2,
+    "plates_with_render_timestamp": 145,
+    "plates_selected": 108,
+    "plates_reattempted": 1,
+    "pair_gap_p50_s": 0.358,
+    "pair_gap_max_s": 0.666,
+    "derivative_time_s": 56.69
+  },
+  "orchestration_detail": {
+    "derivatives_s": 56.69,
+    "idle_between_phases_s": null,
+    "idle_gaps": null,
+    "runner_tick_s": 5.0,
+    "unexplained_s": 160.0
+  },
+  "integrity": {
+    "counts_match_artifacts": true,
+    "residual_non_negative": true,
+    "foreign_transforms_in_window": [],
+    "warnings": [
+      "1 plates were rendered more than once; only the last attempt is timestamped, so earlier attempts land in the residual."
+    ]
+  }
+}

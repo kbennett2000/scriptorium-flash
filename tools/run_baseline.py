@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Drive one Scriptorium bake end to end and record exactly when things happened.
+
+Scriptorium is not modified and its deployed configuration is not touched. The
+bakery pauses at two human review gates; this script watches for each one and
+clears it as soon as it opens, recording how long it waited so that human time
+can be subtracted from machine time.
+
+Writes a run log that `bake_timing.py` reads for its window and gate figures.
+
+    ./run_baseline.py --gutenberg-id 932 --out runs/pg-932/run.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+BASE = "http://localhost:8720"
+POLL_S = 1.0
+
+# state -> the endpoint that clears it
+GATES = {
+    "cast_done": "approve-cast",
+    "prompts_draft": "approve",
+    "portraits_review": "approve-portraits",
+}
+TERMINAL = {"published", "failed"}
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def call(method: str, path: str, body: dict | None = None, timeout: float = 300.0):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        BASE + path,
+        data=data,
+        method=method,
+        headers={"content-type": "application/json"} if data else {},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")[:400]
+        raise SystemExit(f"{method} {path} -> HTTP {e.code}: {detail}") from None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--gutenberg-id", type=int, required=True)
+    ap.add_argument("--title", default="The Fall of the House of Usher")
+    ap.add_argument("--author", default="Poe, Edgar Allan")
+    ap.add_argument("--style-id", default="oil-painting")
+    ap.add_argument("--density-preset", default="lavish")
+    ap.add_argument("--images-per-scene", type=int, default=1)
+    ap.add_argument("--era", default="1840s American Gothic")
+    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument(
+        "--stop-after-selection",
+        action="store_true",
+        help="pause at the prompt-review gate and report the plate count without "
+        "approving, so an out-of-range selection is caught before any GPU time "
+        "is spent on rendering",
+    )
+    args = ap.parse_args()
+
+    body = {
+        "source": {
+            "kind": "gutenberg",
+            "gutenberg_id": args.gutenberg_id,
+            "title": args.title,
+            "author": args.author,
+        },
+        "bake": {
+            "style_id": args.style_id,
+            "density_preset": args.density_preset,
+            "images_per_scene": args.images_per_scene,
+            "era": args.era,
+            "portraits_enabled": True,
+            "portrait_review": False,
+            "title": args.title,
+            "author": args.author,
+        },
+    }
+
+    log: dict = {
+        "t_start": now(),
+        "t_end": None,
+        "book_id": None,
+        "request": body,
+        "transitions": [],
+        "gates": {"cast_s": 0.0, "approve_s": 0.0, "total_s": 0.0},
+        "final_state": None,
+    }
+
+    def flush() -> None:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(log, indent=2) + "\n")
+
+    print(f"[{now()}] creating book (ingest runs inline, this blocks)", flush=True)
+    created = call("POST", "/api/admin/books", body)
+    book_id = created["book_id"]
+    log["book_id"] = book_id
+    log["transitions"].append({"at": now(), "state": created.get("state")})
+    print(f"[{now()}] book_id={book_id} state={created.get('state')} "
+          f"warnings={created.get('warnings')}", flush=True)
+    flush()
+
+    call("POST", f"/api/admin/jobs/{book_id}/start")
+    print(f"[{now()}] started", flush=True)
+
+    state = None
+    gate_opened_at: float | None = None
+    gate_name: str | None = None
+
+    while True:
+        book = call("GET", f"/api/admin/books/{book_id}", timeout=30)
+        new_state = book.get("state")
+
+        if new_state != state:
+            state = new_state
+            log["transitions"].append({"at": now(), "state": state})
+            print(f"[{now()}] -> {state}", flush=True)
+            flush()
+
+        if state in TERMINAL:
+            break
+
+        if state in GATES and gate_opened_at is None:
+            gate_opened_at = time.monotonic()
+            gate_name = state
+
+            if state == "prompts_draft":
+                plates = len(book.get("prompt_warnings") or {}) or None
+                print(f"[{now()}] prompt gate open"
+                      + (f" (~{plates} prompts)" if plates else ""), flush=True)
+                if args.stop_after_selection:
+                    print("stopping before render, as asked", flush=True)
+                    log["final_state"] = state
+                    log["t_end"] = now()
+                    flush()
+                    return 0
+
+            call("POST", f"/api/admin/books/{book_id}/{GATES[state]}")
+            waited = time.monotonic() - gate_opened_at
+            key = "cast_s" if state == "cast_done" else "approve_s"
+            log["gates"][key] = log["gates"].get(key, 0.0) + waited
+            log["gates"]["total_s"] = round(
+                sum(v for k, v in log["gates"].items() if k.endswith("_s")
+                    and k != "total_s"),
+                3,
+            )
+            print(f"[{now()}] cleared {gate_name} gate in {waited:.2f}s", flush=True)
+            gate_opened_at = None
+            gate_name = None
+            flush()
+
+        time.sleep(POLL_S)
+
+    log["final_state"] = state
+    log["t_end"] = now()
+    flush()
+
+    elapsed = (
+        datetime.fromisoformat(log["t_end"]) - datetime.fromisoformat(log["t_start"])
+    ).total_seconds()
+    print(f"[{now()}] {state} — wall {elapsed / 60:.1f} min, "
+          f"gate wait {log['gates']['total_s']:.1f}s", flush=True)
+    return 0 if state == "published" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

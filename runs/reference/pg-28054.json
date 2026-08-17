@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "book_id": "pg-28054",
+  "collected_at": "2026-08-17T15:39:16.296500+00:00",
+  "window": {
+    "start": "2026-08-14T04:11:09.231113+00:00",
+    "end": "2026-08-14T14:12:22.050685+00:00",
+    "source": "job_record"
+  },
+  "wall_s": 36072.82,
+  "gates": {
+    "cast_s": 0.0,
+    "approve_s": 0.0,
+    "total_s": 0.0,
+    "source": "absent"
+  },
+  "machine_time_s": 36072.82,
+  "buckets": {
+    "text_steps_s": 4753.29,
+    "image_rendering_s": 3459.98,
+    "model_loading_s": 963.92,
+    "orchestration_s": 26895.63
+  },
+  "gross": {
+    "text_including_model_load_s": 4779.92,
+    "image_including_model_load_s": 4397.27
+  },
+  "model_loading_detail": {
+    "ollama_s": 26.63,
+    "ollama_cold_requests": 3,
+    "sdxl_s": 937.29,
+    "sdxl": {
+      "warm_render_median_s": 7.49,
+      "warm_render_count": 120,
+      "full_cold_after_free": {
+        "n": 1,
+        "penalty_s": 10.49,
+        "total_s": 10.49
+      },
+      "intra_phase_restage": {
+        "n": 331,
+        "penalty_s": 2.8,
+        "total_s": 926.8
+      }
+    },
+    "gpu_free_events": 4,
+    "text_model_unload_events": 3
+  },
+  "text_detail": {
+    "calls_counted": 1654,
+    "by_transform": {
+      "cast-mentions": {
+        "n": 600,
+        "sum_s": 1893.13,
+        "median_s": 2.994
+      },
+      "cast-canonicalize": {
+        "n": 85,
+        "sum_s": 160.2,
+        "median_s": 1.823
+      },
+      "scene-update": {
+        "n": 600,
+        "sum_s": 1862.94,
+        "median_s": 3.063
+      },
+      "illustration-prompt": {
+        "n": 369,
+        "sum_s": 863.66,
+        "median_s": 2.31
+      }
+    },
+    "non_200_requests": 4,
+    "artifact_counts": {
+      "cast-mentions": 600,
+      "scene-update": 600,
+      "cast-canonicalize": 81
+    }
+  },
+  "image_detail": {
+    "renders_in_window": 454,
+    "renders_matched": 452,
+    "renders_unattributed": 2,
+    "plates_with_render_timestamp": 452,
+    "plates_selected": 369,
+    "plates_reattempted": 0,
+    "pair_gap_p50_s": 0.429,
+    "pair_gap_max_s": 0.652,
+    "derivative_time_s": 195.8
+  },
+  "orchestration_detail": {
+    "derivatives_s": 195.8,
+    "idle_between_phases_s": null,
+    "idle_gaps": null,
+    "runner_tick_s": 5.0,
+    "unexplained_s": 26699.83
+  },
+  "integrity": {
+    "counts_match_artifacts": false,
+    "residual_non_negative": true,
+    "foreign_transforms_in_window": [
+      "opinion-gate",
+      "opinion-image-brief",
+      "story-cover"
+    ],
+    "warnings": [
+      "Foreign transforms in window: opinion-gate, opinion-image-brief, story-cover. Another project was using the text service during this run.",
+      "Text call counts do not match artifact file counts \u2014 the window is wrong or another bake overlapped.",
+      "4 failed text requests carry no latency; they inflate the residual by up to ~11s."
+    ]
+  }
+}
