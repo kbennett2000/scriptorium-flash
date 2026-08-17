@@ -1,0 +1,97 @@
+{
+  "model": "cogito-671b-v2-1-fp8-dynamic",
+  "response_format_sent": false,
+  "transform": "cast-mentions v0.3.0",
+  "calls": 10,
+  "clean_parses": 0,
+  "latency_median_s": 0.191,
+  "latency_min_s": 0.154,
+  "latency_max_s": 0.375,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "balance_before": 49.9879616,
+  "balance_after": 49.9879616,
+  "balance_delta": 0.0,
+  "results": [
+    {
+      "page": "0001",
+      "status": 404,
+      "seconds": 0.37474175600800663,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0002",
+      "status": 404,
+      "seconds": 0.1913012839941075,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0003",
+      "status": 404,
+      "seconds": 0.20144282700493932,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0004",
+      "status": 404,
+      "seconds": 0.25136125400604215,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0005",
+      "status": 404,
+      "seconds": 0.22778226100490429,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0006",
+      "status": 404,
+      "seconds": 0.16423184399900492,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0007",
+      "status": 404,
+      "seconds": 0.17543355700036045,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0008",
+      "status": 404,
+      "seconds": 0.17067658599989954,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0009",
+      "status": 404,
+      "seconds": 0.17482708100578748,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    },
+    {
+      "page": "0010",
+      "status": 404,
+      "seconds": 0.15388712100684643,
+      "body": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"endpoint not found\"}",
+      "clean": false,
+      "reason": "HTTP 404"
+    }
+  ]
+}

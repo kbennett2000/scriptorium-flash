@@ -1,0 +1,45 @@
+{
+  "endpoint_slug": "qwen3-32b-awq",
+  "model": "Qwen/Qwen3-32B-AWQ",
+  "price_per_1m_in": 10.0,
+  "price_per_1m_out": 10.0,
+  "response_format_sent": true,
+  "transform": "cast-mentions v0.3.0",
+  "calls": 2,
+  "clean_parses": 0,
+  "latency_median_s": 94.757,
+  "latency_min_s": 0.478,
+  "latency_max_s": 94.757,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "cost_usd_reported": 0,
+  "balance_before": 49.90785277,
+  "balance_after_45s": 49.90785277,
+  "balance_delta_45s": 0.0,
+  "balance_note": "the balance lags charges by minutes; cost_usd_reported is the authoritative figure",
+  "pg41_extrapolation": {
+    "text_calls": 55,
+    "basis": "cast-mentions measured here, scaled to all 55 calls; an over-estimate because cast-mentions has the largest num_predict of the four transforms",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "results": [
+    {
+      "page": "0001",
+      "status": 500,
+      "seconds": 94.75692098400032,
+      "body": "{\"status\":500,\"title\":\"Internal Server Error\",\"detail\":\"internal server error\"}",
+      "clean": false,
+      "reason": "HTTP 500"
+    },
+    {
+      "page": "0002",
+      "status": 500,
+      "seconds": 0.47777033199963626,
+      "body": "{\"status\":500,\"title\":\"Internal Server Error\",\"detail\":\"internal server error\"}",
+      "clean": false,
+      "reason": "HTTP 500"
+    }
+  ]
+}

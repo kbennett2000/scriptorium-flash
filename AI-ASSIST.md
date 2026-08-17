@@ -22,6 +22,116 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — The public-endpoint catalogue, and four opaque 500s
+
+Numbers in [FINDINGS.md](FINDINGS.md). This is what the documentation and the API
+did around them, and one mistake of my own.
+
+### A documented model was withdrawn the same day it was priced
+
+Cycle 2 read the docs, tabulated seven text endpoints, and picked
+**Cogito 671B v2.1** at $0.50/1M — twenty times cheaper than the alternatives —
+as the value pick. This cycle's plan named it as the model to test.
+
+`https://api.runpod.ai/v2/cogito-671b-v2-1-fp8-dynamic/openai/v1/...` returns:
+
+```
+{"status":404,"title":"Not Found","detail":"endpoint not found"}
+```
+
+Its documentation page is still up and still gives that exact slug. So is the
+pricing. The endpoint is gone.
+
+This is logged here as tooling friction, but it belongs in the talk as an
+architecture point: a per-token dependency whose cheapest model can vanish
+between one day and the next has no price floor to build a cost model on, and
+the only notice you get is a 404 at request time.
+
+### Two of the three text slugs on the live reference page are dead
+
+`docs.runpod.io/public-endpoints/reference` lists its text models as
+`granite-4`, `moonshot-kimi`, `qwen3-32b`. Live: `granite-4` **404**,
+`qwen3-32b` **404**, `moonshot-kimi` 200. And `qwen3-32b-awq`, which works and is
+the only endpoint that can do constrained decoding, **is not on the page at
+all**.
+
+The page also puts two different identifiers in one column headed "model slugs".
+`kimi-k2.6` is a *model id* for the request body; the *endpoint slug* serving it
+is `moonshot-kimi`. Use the documented value in the URL and you get a 404. The
+distinction is never stated.
+
+### Four opaque 500s, and what each turned out to be
+
+Every one of these returns the same body — `{"status":500,"title":"Internal
+Server Error","detail":"internal server error"}` — with nothing naming the
+offending field. All four were found by bisection, not by reading an error.
+
+**1 and 2: `temperature` and `top_p`, independently, on `moonshot-kimi`.** Two of
+the most basic OpenAI parameters, on a route advertised as OpenAI-compatible.
+Remove either and the identical request succeeds. Home runs every transform at a
+deliberate temperature, so this endpoint cannot reproduce home's sampling at all.
+
+**3: `response_format` with a real-world schema.** Which looked like "public
+endpoints do not support structured output" and would have been the wrong
+conclusion — see below.
+
+**4: `minLength`/`maxLength` on a string, inside an otherwise fine schema.** This
+one hangs for **60 seconds** before returning the 500, which reads like a
+timeout rather than a rejected parameter.
+
+### Credit where it is due: structured output works, and nothing says so
+
+Having got a 500 from `response_format`, the obvious conclusion was that public
+endpoints have no constrained decoding — consistent with Cycle 2's finding that
+no Runpod page documents any. That conclusion was wrong.
+
+On `qwen3-32b-awq`, against a simple schema, **all four mechanisms work**:
+`response_format: {type: json_object}`, `{type: json_schema}`, the same with
+`strict: true`, and vLLM's native `guided_json`. Every one returns exactly
+`{"ok":true}`.
+
+So the capability Scriptorium needs is there and is genuinely good. It is
+documented nowhere — not on the reference page, not on the per-model pages, not
+in the flash skill. Working it out took a bisection over five request shapes and
+six schemas.
+
+### The mistake I made, and how the tool changed
+
+The probe originally read `clientBalance`, waited for it to stop changing, and
+reported the delta as the cost. It reported that this account was billed **3.26×
+below list price** — a striking claim, stated confidently, and wrong.
+
+Runpod's balance lags charges by several minutes. A reading taken a minute after
+the last call reports a fraction of the spend, and because nothing has posted
+yet, it does not move on re-reads either — so a lagging number passes a
+stability check. The real spend showed up later and matched list price to the
+cent.
+
+`tools/public_endpoint_probe.py` now treats the endpoint's own `cost` field as
+authoritative — it is exact, `total_tokens ×` the published rate on both models
+tested — and prints the balance only as a lagging cross-check, with the reason
+written into the code so the next person does not redo it.
+
+The general lesson is the useful one: **a stable reading is not a settled one**,
+and on this platform the two instruments disagree in opposite directions —
+serverless spend appears in the balance and never in the billing history, while
+per-token spend appears in the response and only slowly in the balance.
+
+### Smaller things
+
+**Public endpoints have cold starts too.** The first call to `qwen3-32b-awq`
+took **59.66 s**; the next took 0.33 s. The selling point is that there is no
+worker to manage, which is true, but "no cold start" is not — you simply do not
+own it and are not billed for it.
+
+**`kimi-k2.6` is a reasoning model and nothing says so.** Neither the reference
+page nor the model list marks it. It returns `reasoning_content`, and on a
+700-token budget it spent 699 tokens thinking and returned an empty `content`
+ten times out of ten — billed in full. A caller sizing `max_tokens` from a
+non-reasoning model's needs gets nothing back and pays for it.
+
+---
+
 ## 2026-08-17 — Deploying the first app: what the tools told us, and what they did not
 
 Friction from the first real deployment. The numbers are in

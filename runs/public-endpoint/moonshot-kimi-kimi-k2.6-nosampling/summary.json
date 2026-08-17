@@ -1,0 +1,237 @@
+{
+  "endpoint_slug": "moonshot-kimi",
+  "model": "kimi-k2.6",
+  "price_per_1m_in": 0.95,
+  "price_per_1m_out": 4.0,
+  "response_format_sent": false,
+  "transform": "cast-mentions v0.3.0",
+  "calls": 10,
+  "clean_parses": 0,
+  "latency_median_s": 13.106,
+  "latency_min_s": 12.156,
+  "latency_max_s": 15.49,
+  "prompt_tokens": 13404,
+  "completion_tokens": 7000,
+  "balance_before": 49.9879616,
+  "balance_after": 49.97546942,
+  "balance_delta": 0.01249218,
+  "pg41_extrapolation": {
+    "text_calls": 55,
+    "basis": "cast-mentions measured here, scaled to all 55 calls; an over-estimate because cast-mentions has the largest num_predict of the four transforms",
+    "input_tokens": 73722,
+    "output_tokens": 38500,
+    "cost_usd": 0.224036
+  },
+  "results": [
+    {
+      "page": "0001",
+      "status": 200,
+      "seconds": 12.99933417700231,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1240,
+        "total_tokens": 1940
+      },
+      "reported_cost": 0.003978,
+      "reasoning_chars": 3012,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0002",
+      "status": 200,
+      "seconds": 12.156200700002955,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1372,
+        "total_tokens": 2072
+      },
+      "reported_cost": 0.0041034,
+      "reasoning_chars": 3092,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0003",
+      "status": 200,
+      "seconds": 15.490124068004661,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1385,
+        "total_tokens": 2085
+      },
+      "reported_cost": 0.00411575,
+      "reasoning_chars": 2835,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0004",
+      "status": 200,
+      "seconds": 13.106108986990876,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1482,
+        "total_tokens": 2182
+      },
+      "reported_cost": 0.0042079,
+      "reasoning_chars": 3029,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0005",
+      "status": 200,
+      "seconds": 12.297739106987137,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1238,
+        "total_tokens": 1938
+      },
+      "reported_cost": 0.0039761,
+      "reasoning_chars": 3133,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0006",
+      "status": 200,
+      "seconds": 14.467831201996887,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1278,
+        "total_tokens": 1978
+      },
+      "reported_cost": 0.0040141,
+      "reasoning_chars": 2930,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0007",
+      "status": 200,
+      "seconds": 12.741919018997578,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1357,
+        "total_tokens": 2057
+      },
+      "reported_cost": 0.00408915,
+      "reasoning_chars": 2743,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0008",
+      "status": 200,
+      "seconds": 12.888743054005317,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1269,
+        "total_tokens": 1969
+      },
+      "reported_cost": 0.00400555,
+      "reasoning_chars": 2806,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0009",
+      "status": 200,
+      "seconds": 13.576543164992472,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1385,
+        "total_tokens": 2085
+      },
+      "reported_cost": 0.00411575,
+      "reasoning_chars": 2735,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    },
+    {
+      "page": "0010",
+      "status": 200,
+      "seconds": 13.377508404009859,
+      "finish_reason": "length",
+      "usage": {
+        "completion_tokens": 700,
+        "completion_tokens_details": {
+          "reasoning_tokens": 699
+        },
+        "prompt_tokens": 1398,
+        "total_tokens": 2098
+      },
+      "reported_cost": 0.0041281,
+      "reasoning_chars": 2755,
+      "clean": false,
+      "reason": "invalid JSON: Expecting value: line 1 column 1 (char 0)",
+      "warnings": [],
+      "mentions": null,
+      "raw_chars": 0
+    }
+  ]
+}

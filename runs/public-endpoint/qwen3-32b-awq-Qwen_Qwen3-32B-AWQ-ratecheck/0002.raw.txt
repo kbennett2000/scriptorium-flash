@@ -1,0 +1,18 @@
+<think>
+Okay, let's start by reading through the provided page text carefully. The user wants me to list each distinct character mentioned, following specific rules for names, aliases, and descriptors.
+
+First, I need to identify all the characters. The main one is the Headless Horseman, who is mentioned several times. The text describes him as a ghost of a Hessian trooper without a head. His name is given as "the Headless Horseman of Sleepy Hollow," so that's the proper name to use. There's also mention of Ichabod Crane, a schoolmaster in Sleepy Hollow. His name is clearly stated, so that's straightforward.
+
+Looking for aliases: The Headless Horseman is also referred to as "the spectre" and "the apparition of a figure on horseback, without a head." But according to the rules, aliases should be proper names or name-like forms for the same character. "Spectre" and "apparition" are descriptors, not aliases. The text also mentions "the ghost of a Hessian trooper," but since that's a description of his identity rather than an alias, it doesn't count. So the Headless Horseman doesn't have an alias here.
+
+For Ichabod Crane, the text refers to him as "Ichabod Crane" and "a worthy wight of the name of Ichabod Crane." There's no alias provided for him in the text, so his aliases array will be empty.
+
+Next, descriptors. The Headless Horseman is described as "the apparition of a figure on horseback, without a head" and "the ghost of a Hessian trooper, whose head had been carried away by a cannon-ball..." These are part of the descriptors. Also, "the rushing speed with which he sometimes passes along the Hollow, like a midnight blast" is a descriptor of his movement. However, the descriptors should be verbatim phrases from the text. So I need to extract those exact phrases.
+
+For Ichabod Crane, the text gives a detailed physical description: "He was tall, but exceedingly lank, with narrow shoulders, long arms and legs, hands that dangled a mile out of his sleeves, feet that might have served for shovels, and his whole frame most loosely hung together. His head was small, and flat at top, with huge ears, large green glassy eyes, and a long snipe nose..." These are all descriptors as per the rules.
+
+Now, checking for other characters. The text mentions "the country folk" and "the country firesides," but these are general terms, not specific characters. "The Time Traveller" isn't mentioned here. The only other named place is Sleepy Hollow, but that's a location, not a character. The Hessian trooper is mentioned as the ghost, but the name is part of the Headless Horseman's identity, so it's included in the descriptors.
+
+I need to ensure that I'm not including any pronouns or role-based terms. For example, "the worthy wight" refers to Ichabod, but "worthy wight" is a descriptor, not an alias. The text also mentions "the innkeeper" in some other works, but not here. 
+
+So the final list should include two characters: the Headless Horseman and Ichabod Crane. Each with their proper names, any aliases (if
