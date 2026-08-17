@@ -29,3 +29,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# The flash CLI drops this into whatever directory it is invoked from, on any
+# command including --version.
+.flash/
