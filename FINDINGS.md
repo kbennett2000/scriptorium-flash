@@ -21,9 +21,74 @@ Rules for entries:
 
 | Date | What | Cost | Source |
 |---|---|---|---|
-| — | Nothing spent yet | $0.00 | — |
+| 2026-08-17 | Cycle 2 key check — two read-only account queries | $0.00 | `runpodctl billing {pods,serverless,network-volume}` all return `[]` |
 
 **Total Runpod spend to date: $0.00**
+
+Verified against the account's own billing records, not estimated. See the
+account baseline below for what "verified" rests on.
+
+---
+
+## 2026-08-17 — Cycle 2
+
+### Account baseline, before any spend
+
+Read with `runpodctl user` and `runpodctl billing`, both free read-only queries.
+This is the reference point every later cost in this cycle is measured against.
+
+| Field | Value |
+|---|---|
+| `clientBalance` | **$49.9945861833** |
+| `currentSpendPerHr` | $0 |
+| `spendLimit` | $80 |
+| Billing history — pods | `[]` |
+| Billing history — serverless | `[]` |
+| Billing history — network volumes | `[]` |
+
+The billing histories are empty over an all-time window
+(`--start-time 2024-01-01T00:00:00Z --end-time 2026-08-18T00:00:00Z
+--bucket-size month`), not merely over the default one-day window. So nothing has
+ever been charged to this account for pods, serverless, or network volumes.
+
+**One thing this does not explain, recorded rather than guessed at.** The balance
+is **$0.0054138167 short of a round $50.00**. Three categories of billing history
+are empty, so that difference did not come from a pod, an endpoint, or a volume.
+Two candidates: the credit was never exactly $50.00, or something was spent in a
+category `runpodctl` cannot report. The only category it cannot report is
+per-token **public endpoint** usage — there is no
+`runpodctl billing public-endpoints` subcommand, though the REST API has
+`get-public-endpoint-billing-history`.
+
+That matters beyond bookkeeping: **if that $0.0054 was a public-endpoint charge,
+it is direct evidence that this account's credit does pay for per-token
+billing**, which is the Task 5 question the documentation cannot answer. It is a
+lead, not an answer, and it is not counted as this project's spend — it predates
+Cycle 2's first command.
+
+### Tooling versions these numbers came from
+
+| Tool | Version |
+|---|---|
+| `runpodctl` | `2.9.0-c094cac`, installed from the pinned GitHub release, SHA256 verified against `checksums_2.9.0_sha256.txt` |
+| `flash` | `Runpod Flash CLI v1.19.0` (`runpod-flash` 1.19.0 on Python 3.13) |
+
+### Key check result
+
+| Tool | Reads the installed `~/.runpod/config.toml`? |
+|---|---|
+| `runpodctl` | **Yes.** `runpodctl user` returns the account record with nothing set in the environment. |
+| `flash` | **No.** Every account-touching subcommand fails with `RunpodAPIKeyError`. |
+
+The cause is a format mismatch, not a missing key: `runpodctl` uses a top-level
+`apikey`, while `flash` requires a `[default]` table containing `api_key`. Full
+diagnosis and the draft issue are in [AI-ASSIST.md](AI-ASSIST.md); the practical
+consequence is in [hello-flash/README.md](hello-flash/README.md) under "Two CLIs,
+one file, two formats".
+
+**This blocks deployment.** Nothing that needs `flash` can run until `flash login`
+is done once, interactively, in a browser. No workaround was attempted, because
+every remedy the CLI itself suggests requires extracting the plaintext key.
 
 ---
 
