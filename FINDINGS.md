@@ -21,12 +21,19 @@ Rules for entries:
 
 | Date | What | Cost | Source |
 |---|---|---|---|
-| 2026-08-17 | Cycle 2 key check — two read-only account queries | $0.00 | `runpodctl billing {pods,serverless,network-volume}` all return `[]` |
+| 2026-08-17 | Cycle 2, entire cycle — read-only account queries only | $0.00 | `runpodctl billing {pods,serverless,network-volume}`, all-time window, all return `[]` |
 
 **Total Runpod spend to date: $0.00**
 
-Verified against the account's own billing records, not estimated. See the
-account baseline below for what "verified" rests on.
+Verified against the account's own billing records, not estimated: all three
+billing categories return `[]` over an all-time window, and `clientBalance` is
+**$49.9945861833** at the end of the cycle, unchanged to the last decimal place
+from the reading taken before the first command was run.
+
+No spend gate was reached. Every billable step in Cycle 2 — the hello-world
+deployment, the hosted-model test call, and both image-app measurement passes —
+is blocked upstream of its gate by `flash` being unable to authenticate. Nothing
+was provisioned, so nothing could be charged.
 
 ---
 
