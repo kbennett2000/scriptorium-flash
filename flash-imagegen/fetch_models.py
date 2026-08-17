@@ -21,12 +21,22 @@ Two deliberate choices:
 
     ./fetch_models.py --dest /opt/ComfyUI/models
     ./fetch_models.py --dest /opt/ComfyUI/models --check-only
+    ./fetch_models.py --dest /opt/ComfyUI/models --from-dir /modelcache
+
+``--from-dir`` copies from a local ComfyUI models tree before reaching for the
+network, which turns an ~11GB download into a disk copy when the build machine is
+already running the home stack. **It changes nothing about what ends up in the
+image**: the copied file goes through the identical size and SHA256 check, and a
+mismatch fails the build exactly as a bad download would. A file missing from the
+cache silently falls through to its URL, so the from-scratch path keeps working
+for anyone without a local copy.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import shutil
 import sys
 import urllib.request
 from pathlib import Path
@@ -104,12 +114,28 @@ def download(url: str, dest: Path) -> None:
     tmp.replace(dest)
 
 
+def copy_local(src: Path, dest: Path) -> None:
+    """Copy from a local models tree, via a .part file like ``download`` does.
+
+    The temp-then-rename keeps a half-copied file from ever being visible at the
+    destination path, so an interrupted build cannot leave something that looks
+    present but is short.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    shutil.copyfile(src, tmp)
+    tmp.replace(dest)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dest", type=Path, required=True,
                     help="ComfyUI models/ directory")
     ap.add_argument("--check-only", action="store_true",
                     help="verify what is already there; download nothing")
+    ap.add_argument("--from-dir", type=Path, default=None,
+                    help="a local ComfyUI models/ tree to copy from before "
+                         "downloading; copies are hash-checked identically")
     args = ap.parse_args()
 
     failures = 0
@@ -125,17 +151,49 @@ def main() -> int:
             failures += 1
             continue
 
-        print(f"fetch    {subdir}/{name}  ({why})")
-        try:
-            download(url, path)
-        except Exception as exc:  # noqa: BLE001 - build-time, report and fail
-            print(f"FAIL     {subdir}/{name}: download failed: {exc}")
-            failures += 1
-            continue
+        # Prefer the local cache when it holds this file. A cache miss, or a
+        # cached file that fails its hash, falls through to the URL -- the cache
+        # is an accelerator, never an authority.
+        source = "download"
+        cached = args.from_dir / subdir / name if args.from_dir else None
+        if cached is not None and cached.is_file():
+            print(f"copy     {subdir}/{name}  (from {cached})")
+            try:
+                copy_local(cached, path)
+                source = "local cache"
+            except Exception as exc:  # noqa: BLE001 - build-time, report and fall back
+                print(f"warn     {subdir}/{name}: copy failed ({exc}); downloading")
+
+        if source == "download":
+            print(f"fetch    {subdir}/{name}  ({why})")
+            try:
+                download(url, path)
+            except Exception as exc:  # noqa: BLE001 - build-time, report and fail
+                print(f"FAIL     {subdir}/{name}: download failed: {exc}")
+                failures += 1
+                continue
 
         ok, why = verify(path, size, digest)
         if ok:
-            print(f"verified {subdir}/{name}")
+            print(f"verified {subdir}/{name}  [{source}]")
+        elif source == "local cache":
+            # A cached file that does not match is a wrong file, not a slow one.
+            # Discard it and take the network copy rather than trusting the box.
+            print(f"warn     {subdir}/{name}: cache mismatch ({why}); downloading")
+            path.unlink(missing_ok=True)
+            try:
+                download(url, path)
+            except Exception as exc:  # noqa: BLE001
+                print(f"FAIL     {subdir}/{name}: download failed: {exc}")
+                failures += 1
+                continue
+            ok, why = verify(path, size, digest)
+            if ok:
+                print(f"verified {subdir}/{name}  [download after cache mismatch]")
+            else:
+                print(f"FAIL     {subdir}/{name}: {why}")
+                path.unlink(missing_ok=True)
+                failures += 1
         else:
             # Fail closed. A wrong file here renders something that is not what
             # the home machine renders, which would quietly invalidate the whole
