@@ -1,0 +1,79 @@
+{
+  "t_start": "2026-08-17T17:14:08.351281+00:00",
+  "t_end": "2026-08-17T17:17:42.603514+00:00",
+  "book_id": "pg-41",
+  "request": {
+    "source": {
+      "kind": "gutenberg",
+      "gutenberg_id": 41,
+      "title": "The Legend of Sleepy Hollow",
+      "author": "Irving, Washington"
+    },
+    "bake": {
+      "style_id": "oil-painting",
+      "density_preset": "lavish",
+      "images_per_scene": 1,
+      "era": "1790s Hudson Valley",
+      "portraits_enabled": true,
+      "portrait_review": false,
+      "title": "The Legend of Sleepy Hollow",
+      "author": "Irving, Washington"
+    }
+  },
+  "transitions": [
+    {
+      "at": "2026-08-17T17:14:10.262338+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-17T17:14:10.264944+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-17T17:14:15.271676+00:00",
+      "state": "mentions_running"
+    },
+    {
+      "at": "2026-08-17T17:15:23.379643+00:00",
+      "state": "mentions_done"
+    },
+    {
+      "at": "2026-08-17T17:15:28.386519+00:00",
+      "state": "cast_running"
+    },
+    {
+      "at": "2026-08-17T17:15:49.418654+00:00",
+      "state": "cast_done"
+    },
+    {
+      "at": "2026-08-17T17:15:50.421992+00:00",
+      "state": "cast_approved"
+    },
+    {
+      "at": "2026-08-17T17:15:54.427715+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-17T17:16:57.529847+00:00",
+      "state": "ledger_done"
+    },
+    {
+      "at": "2026-08-17T17:17:02.536367+00:00",
+      "state": "selected"
+    },
+    {
+      "at": "2026-08-17T17:17:07.543124+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-17T17:17:42.603312+00:00",
+      "state": "prompts_draft"
+    }
+  ],
+  "gates": {
+    "cast_s": 0.0016966690018307418,
+    "approve_s": 0.0,
+    "total_s": 0.002
+  },
+  "final_state": "prompts_draft"
+}

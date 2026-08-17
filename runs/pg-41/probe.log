@@ -1,0 +1,17 @@
+[2026-08-17T17:14:08.351306+00:00] creating book (ingest runs inline, this blocks)
+[2026-08-17T17:14:10.262346+00:00] book_id=pg-41 state=ingested warnings=[]
+[2026-08-17T17:14:10.263905+00:00] started
+[2026-08-17T17:14:10.264950+00:00] -> ingested
+[2026-08-17T17:14:15.271684+00:00] -> mentions_running
+[2026-08-17T17:15:23.379651+00:00] -> mentions_done
+[2026-08-17T17:15:28.386529+00:00] -> cast_running
+[2026-08-17T17:15:49.418662+00:00] -> cast_done
+[2026-08-17T17:15:49.420533+00:00] cleared cast_done gate in 0.00s
+[2026-08-17T17:15:50.422000+00:00] -> cast_approved
+[2026-08-17T17:15:54.427722+00:00] -> ledger_running
+[2026-08-17T17:16:57.529855+00:00] -> ledger_done
+[2026-08-17T17:17:02.536374+00:00] -> selected
+[2026-08-17T17:17:07.543132+00:00] -> prompts_running
+[2026-08-17T17:17:42.603320+00:00] -> prompts_draft
+[2026-08-17T17:17:42.603499+00:00] prompt gate open (~5 prompts)
+stopping before render, as asked

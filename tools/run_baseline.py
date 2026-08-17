@@ -54,6 +54,21 @@ def call(method: str, path: str, body: dict | None = None, timeout: float = 300.
         raise SystemExit(f"{method} {path} -> HTTP {e.code}: {detail}") from None
 
 
+def plate_count(book_id: str) -> int | None:
+    """How many plates selection actually chose.
+
+    ``selection.plates`` on the review endpoint is the authoritative list -- it is
+    what the selection engine wrote and what the renderer will work from. Returns
+    None rather than a wrong number if the shape is not what we expect.
+    """
+    try:
+        review = call("GET", f"/api/admin/books/{book_id}/review", timeout=30)
+    except SystemExit:
+        return None
+    plates = (review.get("selection") or {}).get("plates")
+    return len(plates) if isinstance(plates, list) else None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--gutenberg-id", type=int, required=True)
@@ -140,9 +155,17 @@ def main() -> int:
             gate_name = state
 
             if state == "prompts_draft":
-                plates = len(book.get("prompt_warnings") or {}) or None
+                # The plate count is selection.plates, and nothing else. An earlier
+                # version counted prompt_warnings here, which is the number of pages
+                # that drew a *warning* -- on pg-41 that reported 5 against a real
+                # count of 10. This gate exists to catch an out-of-range selection
+                # before GPU time is spent, so a number that is only sometimes the
+                # plate count is worse than no number.
+                plates = plate_count(book_id)
+                log["plate_count"] = plates
                 print(f"[{now()}] prompt gate open"
-                      + (f" (~{plates} prompts)" if plates else ""), flush=True)
+                      + (f" ({plates} plates)" if plates is not None
+                         else " (plate count unavailable)"), flush=True)
                 if args.stop_after_selection:
                     print("stopping before render, as asked", flush=True)
                     log["final_state"] = state
