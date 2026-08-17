@@ -22,6 +22,156 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-17 — The two CLIs do not share the credential file they share
+
+Cycle 2 opened by checking that both Runpod command-line tools can read the
+installed API key. One can. The other cannot, and the reason is a format
+mismatch inside a single file that both tools own.
+
+Nothing was deployed for this. Both checks are read-only account queries.
+
+### What happened
+
+`runpodctl user` works first time. It reads `~/.runpod/config.toml`, returns the
+account record, and needs nothing in the environment. That is the documented
+behaviour and it is accurate.
+
+Every `flash` subcommand that touches the account fails:
+
+```
+RunpodAPIKeyError: No RunPod API key found. Set one with:
+
+  flash login                              # interactive setup
+                 or
+  export RUNPOD_API_KEY=<your-api-key>     # environment variable
+                 or
+  echo 'RUNPOD_API_KEY=<your-api-key>' >> .env
+```
+
+`flash app list` and `flash env list` both exit 1 with a full Python traceback
+above that message.
+
+### Why
+
+The two CLIs read different keys out of the same file.
+
+`runpodctl` uses a **top-level `apikey`** — documented at
+`runpodctl/reference/output-and-errors.md:201`, and the shape the skills' own
+extraction one-liner greps for (`grep '^apikey'`).
+
+`flash` delegates to `runpod-python`. `runpod_flash/core/credentials.py:46` reads
+`creds.get("api_key")`, where `creds` comes from
+`runpod.cli.groups.config.functions.get_credentials(profile="default")` — and
+that function returns `None` outright if the parsed TOML has no `default` table:
+
+```python
+if profile not in credentials:
+    return None
+```
+
+So `flash` needs a **`[default]` table containing `api_key`**. Given a file with
+only the top-level `apikey`, `get_credentials()` returns `None`,
+`get_api_key()` returns `None`, and `flash` reports "No API key found" about a
+file it successfully read.
+
+The header of `credentials.py` states the intended contract as *"Resolution
+priority: RUNPOD_API_KEY env var > .env > ~/.runpod/config.toml"*. The file is in
+the priority list; the format it must be in is not stated anywhere.
+
+### Why this one matters more than the usual doc nit
+
+The error message lists three remedies and every one of them puts the plaintext
+key somewhere new — an environment variable, a `.env` file, or an interactive
+prompt. None of them says "the file you already have is in the wrong shape."
+An agent or a person following that message lands exactly on the
+credential-extraction one-liner this project flagged in Cycle 1 at
+`runpod-usage/reference/getting-started.md:43`. The bad practice is not just
+documented in the skills; the CLI's own error text steers you into it.
+
+And the skills assert the opposite of the truth. `runpod-usage/reference/getting-started.md:49`:
+
+> Or `flash login` — browser OAuth that **saves a real API key to
+> `~/.runpod/config.toml`**, which runpodctl reads too, so one login serves both.
+
+`runpod/SKILL.md:48-49` repeats it: *"saves a real key to `~/.runpod/config.toml`
+(runpodctl / + flash read it; reuse it for the MCP Bearer). One step, unlocks
+all."* Neither direction of that claim holds — `flash` cannot read runpodctl's
+entry, and runpodctl does not read flash's.
+
+**Credit where due:** the fix is safe. `set_credentials` parses the existing file
+with `tomlkit` and assigns only its own profile, so `flash login` appends the
+`[default]` table and leaves the top-level `apikey` intact. One file ends up
+serving both tools. That is the behaviour the docs promise; it just needs both
+entries present, and nothing tells you so.
+
+Versions: `runpodctl 2.9.0-c094cac`, `Runpod Flash CLI v1.19.0`,
+`runpod-flash` 1.19.0 on Python 3.13.
+
+### Draft issue — for Kris to approve before filing
+
+> **Title:** `flash` cannot read a `~/.runpod/config.toml` written by `runpodctl`, and the error suggests exporting the key instead
+>
+> **Where:** `runpod_flash/core/credentials.py`, plus
+> `docs.runpod.io` credential guidance.
+>
+> **Versions:** `runpod-flash` 1.19.0, `runpodctl` 2.9.0.
+>
+> **What happens:** with a `~/.runpod/config.toml` containing a top-level
+> `apikey` — the form `runpodctl` itself writes and reads — every `flash`
+> subcommand that contacts the account fails with `RunpodAPIKeyError: No RunPod
+> API key found`. `runpodctl user` against the same file succeeds.
+>
+> **Cause:** `credentials.py:46` reads `creds.get("api_key")` from
+> `runpod-python`'s `get_credentials(profile="default")`, which returns `None`
+> when the file has no `[default]` table. `runpodctl` uses a top-level `apikey`
+> instead. Both tools document `~/.runpod/config.toml` as the shared credential
+> file, and Runpod's guidance says one login serves both, but the two use
+> incompatible schemas.
+>
+> **Reproduce:**
+> 1. Put `apikey = '<key>'` at the top level of `~/.runpod/config.toml`.
+> 2. `runpodctl user` → succeeds.
+> 3. `flash app list` → traceback, `RunpodAPIKeyError`.
+>
+> **Two suggestions, either sufficient:**
+> - Have `credentials.py` fall back to a top-level `apikey` when the `default`
+>   profile is absent, so the two CLIs interoperate as documented.
+> - Failing that, make the error distinguish "no credential file" from
+>   "credential file present but no `[default]` profile", and have it name
+>   `flash login` as the fix for the second case rather than leading with
+>   `export RUNPOD_API_KEY=`. Suggesting that a user extract a plaintext key into
+>   an environment variable should not be the first remedy offered when a
+>   perfectly good credential file already exists.
+
+### Smaller friction from the same session
+
+**`runpodctl` had to be installed, and the documented way is a pipe to a shell.**
+`runpodctl/SKILL.md:23` and `reference/install.md:4` both give
+`curl -sSL https://cli.runpod.net | bash` — unpinned, unverified. Cycle 1's audit
+ranked that line as the most likely of the three security alerts that fired at
+install time. It was not used. The release is published on GitHub **with a
+`checksums_<version>_sha256.txt` file**, so a pinned, verified install is
+available and takes three commands. The skills never mention it exists.
+
+**`runpodctl billing` is invisible if you read the SKILL.** The billing
+subcommands — `pods`, `serverless`, `network-volume` — appear only in
+`runpodctl/reference/command-reference.md:112-122`, not in
+`runpodctl/SKILL.md`'s command listings. An agent that reads the SKILL and stops
+there never learns the account can be asked what it actually spent, which is the
+one command that turns a cost estimate into a cost.
+
+**There is no `runpodctl billing public-endpoints`.** The three subcommands cover
+pods, serverless and network volumes. Per-token public-endpoint spend has a
+first-class REST endpoint (`get-public-endpoint-billing-history`) but no CLI
+route, so the only no-key way to read the account's own billing history cannot
+see that category at all.
+
+**One correction to Cycle 1's own note.** The audit said `flash` has "no
+`flash version`". It has `flash --version` / `-v`, which prints
+`Runpod Flash CLI v1.19.0`. The subcommand does not exist; the flag does.
+
+---
+
 ## 2026-08-17 — Installing the Flash CLI, following the skill
 
 Friction log from doing exactly what `flash/reference/setup-and-cli.md` says, on
