@@ -11,9 +11,12 @@
 #    60 s idle timeout and go cold again, so the bake would pay a second ~490 s
 #    cold start exactly when it started rendering. Every render in a bake happens
 #    after the prompt gate, so the pre-warm now runs *at* that gate, via
-#    run_baseline.py --at-prompt-gate. The billed window is the render block.
+#    run_baseline.py --at-gate. The billed window is the render block.
 #
-# 2. TITLE AND AUTHOR ARE PASSED. run_baseline.py defaults them to Usher/Poe, and
+# 2. THE CAST IS PRUNED at the cast gate -- see prune_cast.py. 35 portraits for
+#    about 20 people is not a presentation-grade cast page.
+#
+# 3. TITLE AND AUTHOR ARE PASSED. run_baseline.py defaults them to Usher/Poe, and
 #    headline_bake.sh never overrode them -- which is why the published pg-41
 #    bundle says "The Fall of the House of Usher" over Sleepy Hollow's text to
 #    this day. A showcase artifact cannot carry the wrong book on its cover.
@@ -72,7 +75,8 @@ BAKE_T0=$(date -u +%s)
     --gutenberg-id "$GUTENBERG_ID" \
     --title "$TITLE" --author "$AUTHOR" --era "$ERA" \
     --style-id oil-painting --density-preset lavish --images-per-scene 1 \
-    --at-prompt-gate "$REPO/tools/prewarm.py --endpoint $ENDPOINT --workers 4 --out $OUT/prewarm.json" \
+    --at-gate "cast_done=$REPO/tools/prune_cast.py --book-id $BOOK_ID" \
+    --at-gate "prompts_draft=$REPO/tools/prewarm.py --endpoint $ENDPOINT --workers 4 --out $OUT/prewarm.json" \
     --out "$OUT/run.json"
 BAKE_T1=$(date -u +%s)
 echo "  bake wall clock: $((BAKE_T1 - BAKE_T0)) s"
