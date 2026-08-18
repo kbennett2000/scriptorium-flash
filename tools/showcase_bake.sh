@@ -39,7 +39,11 @@ AUTHOR="${AUTHOR:-Stevenson, Robert Louis}"
 ERA="${ERA:-1750s Bristol and the Spanish Main}"
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$REPO/runs/$BOOK_ID-runpod"
+# Same two guards as headline_bake.sh, and for the same reasons -- the default OUT
+# holds committed evidence, and an endpoint left up by accident costs money.
+OUT="${OUT:-$REPO/runs/$BOOK_ID-runpod}"
+case "$OUT" in /*) ;; *) OUT="$REPO/$OUT" ;; esac
+KEEP_ENDPOINT="${KEEP_ENDPOINT:-0}"
 DROPIN=/home/kb/.config/systemd/user/scriptorium-bakery.service.d
 mkdir -p "$OUT"
 
@@ -99,9 +103,15 @@ say "5. single warm request  [PAID]"
     --out "$OUT/warm-demo.json"
 
 # --- 6. tear down by name, immediately --------------------------------------
-say "6. teardown"
-runpodctl serverless delete "$ENDPOINT" | tail -2
-runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+if [ "$KEEP_ENDPOINT" = "1" ]; then
+  say "6. teardown SKIPPED (KEEP_ENDPOINT=1)"
+  echo "  endpoint $ENDPOINT is still up. Delete with:  runpodctl serverless delete $ENDPOINT"
+  runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+else
+  say "6. teardown"
+  runpodctl serverless delete "$ENDPOINT" | tail -2
+  runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+fi
 
 # --- 7. revert the bakery to the committed configuration (free) -------------
 say "7. bakery -> local backend"

@@ -79,6 +79,42 @@ ones taken minutes apart with nothing running in between.
 Cycle 2's gates were never reached, because `flash` could not authenticate.
 Cycle 3's are live.
 
+### Published rates, and the derivations quoted from them
+
+The rate card is Runpod's, not a measurement: **$1.10/hr** (RTX 4090),
+**$0.69/hr** (24 GB tier), **$0.58/hr** (16 GB tier), read off runpod.io/pricing
+and corroborated per-second by the two render passes.
+
+The sub-READMEs quote three figures derived from those rates rather than
+measured. `check_numbers.py` refuses a number it cannot find here, and the rule
+it enforces is that the arithmetic lands in this file first — so:
+
+| Derived figure | Arithmetic | Where it is quoted |
+|---|---|---|
+| **$0.000161**/s | $0.58/hr ÷ 3600 | `hello-flash/README.md` |
+| **$0.000192**/s | $0.69/hr ÷ 3600 | `flash-imagegen/README.md` |
+| **$497**/month | $0.69/hr × 24 × 30, rounded | `flash-imagegen/README.md` |
+
+The $497 figure is the cost of the mistake `workers=(0, N)` exists to prevent: a
+minimum of one worker on the 24 GB tier bills continuously whether or not
+anything is rendering. It is a projection, not a charge — no month of this
+project ever ran that way, and the measured idle cost was $0.00 every time.
+
+One number in `flash-imagegen/README.md` is inherited rather than produced here:
+imagegen-service's ADR-0007 records that identity conditioning from step 0 once
+shipped **84** plates that were near-copies of one reference painting, which is
+why `start_at` is 0.3. That ADR is in Scriptorium's private repo; the figure is
+cited, not re-measured.
+
+### What `flash-imagegen/MODELS.md` numbers are, and why they are not checked here
+
+`MODELS.md` carries byte counts, SHA256 digests, a CivitAI model id and a licence
+clause number for five weight files. None of them is a measurement this project
+produced, and none belongs in this log: they are provenance for files the repo
+deliberately does not ship, and the thing that verifies them is
+`fetch_models.py`, which fails the build on a mismatch. So `MODELS.md` is
+excluded from the `check_numbers.py` sweep by design rather than by oversight.
+
 ---
 
 ## 2026-08-18 — Cycle 5
@@ -109,6 +145,24 @@ home's 7.595 s uses the *conservative* one; warm to warm it is **1.78×**. The h
 325.24 s is a wall clock and is unaffected either way. (Cycle 5's `pg-120` figure,
 4.3080 s over 91 renders, is a clean warm median: its two cold-load images were
 regenerated before it was taken.)
+
+**`pg-120` has two warm medians on record and they are both right.** Anyone
+diffing them will think one is wrong, so: **4.322 s** is what
+`runs/pg-120-runpod/timing.json` reports — the bake *as run*, derived from
+`work/` before the two cold-load portraits were replaced. **4.3080 s** is the
+book *as shipped*, computed by `cold_load_plates.py` over `library/`, which
+resolves the highest `-rN` variant and so reads the regenerated images. The
+published figure is the shipped one, and it is reproducible on demand:
+
+```
+$ ./tools/cold_load_plates.py --book-id pg-120
+book            pg-120  (reading library/)
+rendered        91 images
+warm median     4.3080 s (n=91)
+cold-load plates none -- every image was drawn against a resident model.
+```
+
+Same book, same 91 renders, two different questions. Cite the shipped one.
 
 **`delayTime` on the live-demo request was 23 ms, not zero.** The entry reads "0.0 s",
 which is true to one decimal and is what the artifact rounds to;
@@ -237,6 +291,13 @@ Only worker 0 loaded a model (3.513 s, render 10.821 s); the other three reporte
 `model_load_s: 0` and rendered in 3.78–4.35 s. The whole pre-warm took **50.98 s**, not
 the ~490 s Cycle 4 paid, because the image was already on a worker from provisioning —
 a cold start is only cold once per worker.
+
+**The two pre-warm elapsed times, exactly, because a runbook needs both.** Cycle
+4's pass took **494.714 s** (`runs/pg-41-runpod/prewarm.json`, `elapsed_s`) and
+Cycle 5's took **50.984 s** (`runs/pg-120-runpod/prewarm.json`). Same script, same
+worker count, same image. The difference is entirely whether a worker already had
+the image, so neither figure is "the" pre-warm time and quoting one alone would
+mislead. Budget the larger one before a live demo.
 
 **Two cold-load images shipped into the bake and were replaced before publication.**
 `portrait-ben-gunn` (model load 3.508 s) and `portrait-hunter` (2.508 s) were each some

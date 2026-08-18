@@ -88,3 +88,27 @@ Two GPU tiers, same protocol, same prompts, same seeds: `AMPERE_24` at $0.69/hr
 and `ADA_24` at $1.10/hr, each behind its own spend gate. Cold start, warm render
 per plate over six renders — matching the home median's n=6 — and cost per plate,
 recorded in [FINDINGS.md](../../FINDINGS.md) beside the home number.
+
+## What it measured
+
+*Added 2026-08-18. The decision above stands unchanged; this records the outcome
+so the ADR is not read as a plan that never ran.*
+
+Both tiers were measured. The 24 GB tier came in at **11.937 s** per warm plate
+and the pinned RTX 4090 at **4.2175 s**, against home's **7.595 s**. The
+reproduction held: the container renders **0 differing pixels** of 1,011,712
+against home on all nine plates, once conditioning is correct.
+
+Three things this ADR did not anticipate:
+
+- **The n=6 protocol above was superseded.** The published home median is n=8,
+  and the Runpod figures that ended up on the card come from whole bakes —
+  n=18 and n=91 — not from six-render benches. The bench numbers also needed
+  correcting: `render_bench.py` computed `sorted(...)[n // 2]`, which is the
+  median only for odd n.
+- **Pixel equality needs the model-residency state to match, not just the card.**
+  A worker's first render after a cold model load differs from every render after
+  it, by 842,339 pixels. That is why `tools/prewarm.py` exists.
+- **A `GpuGroup` naming two cards did not constrain placement**; a single
+  `GpuType` did. Reproducibility is bought with a single pin, and paid for in
+  availability — workers sit throttled when no card of that exact model is free.

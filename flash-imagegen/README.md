@@ -3,9 +3,11 @@
 The production Flash app: Scriptorium's plate renderer, on a Runpod GPU instead
 of the desktop.
 
-**Status: built and verified, not deployed.** Nothing has been provisioned and
-nothing has been spent. Two things stand between this and a measurement, and only
-one of them is a decision — see "What is blocking deployment".
+**Status: built, pushed private, deployed and measured on two GPU tiers.** It
+rendered the 18 plates of the headline bake and the 91 of the showcase book. A
+warm plate takes **4.2790 s** against home's **7.595 s**, and costs
+**$0.001742**. Every number is in [../FINDINGS.md](../FINDINGS.md); the one-page
+summary is [../docs/NUMBERS.md](../docs/NUMBERS.md).
 
 ## What it does
 
@@ -55,7 +57,7 @@ have looked correct.
 |---|---|
 | `graph.py` | Builds the ComfyUI prompt graph. A port of `engine.ts`, with node ids and edges matching so a diff is meaningful. |
 | `handler.py` | The Runpod serverless handler. Reports `model_load_s` and `render_s` separately so a cold start is never mistaken for a slow render. |
-| `app.py` | The Flash `Endpoint` declaration. Not deployed. |
+| `app.py` | The Flash `Endpoint` declaration: the GPU pin, the worker range, the idle timeout, and the deliberate absence of a network volume. |
 | `Dockerfile` | ComfyUI 0.27.0 at `6cc8144`, IPAdapter_plus at `a0f451a`, torch 2.11.0+cu128, plus the models. |
 | `fetch_models.py` | Downloads the five model files at build time and verifies size and SHA256. Fails the build on any mismatch. |
 | `workflow-sdxl-txt2img.json` | Copied verbatim from imagegen-service. |
@@ -85,31 +87,53 @@ high-noise steps decide layout; identity lands afterwards.
 ## Cost shape
 
 The 24GB tier (`GpuGroup.AMPERE_24` — L4 / A5000 / RTX 3090) is **$0.69/hr**, or
-$0.000192/s. Chosen as roughly comparable in raw speed to the home RTX 5070, so a
-difference in render time reflects the platform rather than a bigger GPU. A second
-measurement pass on `ADA_24` (RTX 4090, $1.10/hr) is planned so two tiers can be
-compared.
+$0.000192/s. It was chosen as roughly comparable in raw speed to the home RTX
+5070, so a difference in render time would reflect the platform rather than a
+bigger GPU. Both tiers were then measured:
+
+| | 24 GB tier | Pinned RTX 4090 |
+|---|---:|---:|
+| Rate | $0.69/hr | $1.10/hr |
+| Warm render median, corrected | **11.937 s** | **4.2175 s** |
+| Cost per warm plate | **$0.002656** | **$0.001742** |
+
+The faster card is also the cheaper one per plate, because it is warm for less
+time. That is the whole cost argument, and it only holds while the endpoint
+scales to zero.
 
 Two settings decide whether this is cheap or ruinous, and both are commented in
 `app.py`:
 
-- **`workers=(0, 1)`** — scale to zero. A minimum of 1 bills continuously at the
-  full hourly rate, about **$497/month** on this tier.
+- **`workers=(0, N)`** — scale to zero. A minimum of 1 bills continuously at the
+  full hourly rate, about **$497/month** on the 24 GB tier. Measured idle cost
+  with the minimum at zero: **$0.00**, four times.
 - **No network volume.** A network volume bills whether or not a worker runs,
   about **$7/month** for the 100GB default. The weights live in the image instead.
 
-## What is blocking deployment
+## What used to block deployment, and how each was cleared
 
-1. **`flash` cannot authenticate.** It needs a `[default]` table with `api_key` in
-   `~/.runpod/config.toml`; `runpodctl` wrote a top-level `apikey`. One
-   interactive `flash login` fixes it and preserves runpodctl's entry. This is a
-   platform bug, not a decision.
-2. **The image has to be built and pushed to a private registry.** It carries
-   ~11GB of weights including a LoRA that may not be redistributed, so it must not
-   go to a public registry.
+Both are gone. They are kept here because the *way* they failed is the reusable
+part.
 
-Neither is a reason to change the design, and no workaround was attempted for the
-first — every remedy the CLI suggests requires extracting the plaintext API key.
+1. **`flash` could not authenticate.** It needs a `[default]` table with
+   `api_key` in `~/.runpod/config.toml`; `runpodctl` writes a top-level `apikey`.
+   Given only the second, `runpodctl user` works and every `flash` subcommand
+   dies with `RunpodAPIKeyError: No RunPod API key found` — an error that names
+   the environment variable and `.env` as remedies and never mentions that the
+   file it just read was the wrong shape. **Cleared by one interactive
+   `flash login`**, which appends the table and preserves runpodctl's entry.
+   Filed as [runpod/flash#363](https://github.com/runpod/flash/issues/363). No
+   workaround was attempted, because every remedy the CLI suggests requires
+   extracting the plaintext API key.
+2. **The image had to be built and pushed to a private registry.** It carries
+   ~11GB of weights including a LoRA that may not be redistributed, so it must
+   not go to a public registry. **Cleared by pushing to a private GHCR
+   repository** and referencing a registry credential by id from `app.py`. The
+   `containerRegistryAuthId` field that makes this work is undocumented — it is
+   absent from Runpod's custom-image docs and from the Flash skill's
+   `PodTemplate` reference, and was found by reading the SDK. Filed as
+   [runpod/docs#800](https://github.com/runpod/docs/issues/800). Privacy is
+   re-verified after every push.
 
 ## Credits
 
