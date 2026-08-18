@@ -27,6 +27,7 @@ platform and talk about it for 20 minutes. The talk cites this repo.
 | File | What it holds |
 |---|---|
 | [FINDINGS.md](FINDINGS.md) | **Every number this project produces.** Timings, costs, cold starts. Dated. |
+| [docs/NUMBERS.md](docs/NUMBERS.md) | The one-page card for the talk, plus the demo-day warm-up. Every figure cites FINDINGS.md; `tools/check_numbers.py` fails if one does not. |
 | [AI-ASSIST.md](AI-ASSIST.md) | How Runpod's own AI tooling performed — what it got right, what it got wrong. |
 | [docs/adr/](docs/adr/) | Architecture decision records. Start at [0001](docs/adr/0001-architecture.md). |
 | `hello-flash/` | The smallest Flash app that deploys and answers one request. Deployed and measured. |
