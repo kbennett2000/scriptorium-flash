@@ -117,6 +117,79 @@ Nine of nine. **The home-side numbers in this file are safe to cite.**
 Free: 16 prompt replays and 13 local renders, all on the home RTX 5070. No
 Runpod resource was touched.
 
+### The billing API did show the charges, a day later, and it agrees with the balance to nine decimal places
+
+Cycle 3 recorded that `runpodctl billing serverless` returned `[]` for charges
+that demonstrably happened, and concluded that "**the billing-history API cannot
+do that job**" — leaving the balance as the only instrument, and leaving one
+question open in as many words: *"Whether the charge posts to the history later,
+or whether sub-cent serverless usage never appears there, is not yet
+established."*
+
+Re-reading it today, unchanged commands, costs nothing:
+
+| Category | Amount | Endpoint / GPU | Billed ms |
+|---|---:|---|---:|
+| `pods` | 0.0066245836 | NVIDIA RTX A4500 | 95,394 |
+| `serverless` | 0.0439145190 | `h4rz8tmjkq35fu` | — |
+| `serverless` | 0.0376933077 | `ugculdhag081uh` | — |
+| `network-volume` | *(empty)* | — | — |
+
+**Answer: they post later.** The API is not blind to sub-cent serverless usage; it
+lags. Cycle 3's conclusion was right about what it could see at the time and wrong
+about why, and the corrected statement is that the billing history is a *slow*
+instrument rather than an absent one.
+
+**Every balance-derived figure is now independently confirmed.** Against the
+ledger, on charges derived from a completely different instrument:
+
+| Ledger line | Ledger (balance delta) | Billing history | Difference |
+|---|---:|---:|---:|
+| Cycle 3, task 1 — hello-flash | 0.0066245833 | 0.0066245836 | 3 × 10⁻¹⁰ |
+| Cycle 3, task 5 — 24 GB tier | 0.0376933074 | 0.0376933077 | 3 × 10⁻¹⁰ |
+| Cycle 3, task 6 — pinned 4090 | 0.0439145185 | 0.0439145190 | 5 × 10⁻¹⁰ |
+
+That is the project's own rule — *every cent verified against billing records* —
+finally satisfied by the instrument it named, rather than by the balance standing
+in for it. It also retires the concern that the balance might have been measuring
+something other than this project's spend.
+
+**Two details worth keeping.**
+
+*A serverless endpoint billed under `pods`.* The hello-flash charge appears in
+`runpodctl billing pods`, not `billing serverless`, with `gpuId "NVIDIA RTX
+A4500"` — the card the `AMPERE_16` group actually handed out. Anyone reconciling
+serverless spend by querying the serverless category alone would have missed a
+third of this project's charges. Query all three.
+
+*Public-endpoint spend still appears nowhere.* The billing total is
+**$0.0882324104** against a ledger total of **$0.1720812392**. The missing
+**$0.0838488288** is the hosted text-model spend to within 1.2 × 10⁻⁹ — and it is
+in none of the three categories, because there is no
+`runpodctl billing public-endpoints`. Cycle 2's reasoning about the
+$0.0054138167 shortfall was sound: per-token spend moves the balance and is
+invisible to this API. For that class of spend the balance remains the only
+instrument, and the endpoint's own `cost` field the only cross-check.
+
+### The two render `summary.json` files disagree with the ledger, and the ledger is right
+
+`runs/runpod-render/*/summary.json` record `cost_usd` **0.0118587491** and
+**0.0268797963**, against ledger figures of **$0.0376933074** and
+**$0.0439145185**. The `balance_before` values match the ledger exactly; only the
+"after" readings differ.
+
+The cause is the failure this project already named once: a reading taken while
+the balance was still settling. `settled_balance()` requires two consecutive equal
+reads 30 s apart, which is a test for *stable*, and Cycle 3's own lesson is that
+**a stable balance reading is not a settled one**. The field is called
+`balance_after_settled`, which is now a misleading name for what it holds.
+
+The ledger figures are the later reads, and the billing history above confirms
+them from a different instrument to nine decimal places. The JSON files are left
+as they were written and annotated in `runs/runpod-render/README.md` rather than
+edited, because a measurement artifact that gets quietly corrected after the fact
+is worth less than one that carries its own error.
+
 ### The container runs a real 3.11.15, the workaround is gone, and it is now pixel-identical to home
 
 Cycle 3 shipped `ENV PYTORCH_JIT=0` because the container segfaulted on boot every
