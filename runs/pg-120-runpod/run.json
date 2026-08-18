@@ -1,0 +1,182 @@
+{
+  "t_start": "2026-08-18T19:39:40.709934+00:00",
+  "t_end": "2026-08-18T20:30:28.336800+00:00",
+  "book_id": "pg-120",
+  "request": {
+    "source": {
+      "kind": "gutenberg",
+      "gutenberg_id": 120,
+      "title": "Treasure Island",
+      "author": "Stevenson, Robert Louis"
+    },
+    "bake": {
+      "style_id": "oil-painting",
+      "density_preset": "lavish",
+      "images_per_scene": 1,
+      "era": "1750s Bristol and the Spanish Main",
+      "portraits_enabled": true,
+      "portrait_review": false,
+      "title": "Treasure Island",
+      "author": "Stevenson, Robert Louis"
+    }
+  },
+  "transitions": [
+    {
+      "at": "2026-08-18T19:39:41.626192+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-18T19:39:41.629462+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-18T19:39:45.635740+00:00",
+      "state": "mentions_running"
+    },
+    {
+      "at": "2026-08-18T19:48:09.646056+00:00",
+      "state": "mentions_done"
+    },
+    {
+      "at": "2026-08-18T19:48:14.654727+00:00",
+      "state": "cast_running"
+    },
+    {
+      "at": "2026-08-18T19:49:36.817085+00:00",
+      "state": "cast_done"
+    },
+    {
+      "at": "2026-08-18T19:49:38.016088+00:00",
+      "state": "cast_approved"
+    },
+    {
+      "at": "2026-08-18T19:49:41.020602+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-18T19:49:53.043579+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T19:49:58.050657+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-18T19:58:29.992940+00:00",
+      "state": "ledger_done"
+    },
+    {
+      "at": "2026-08-18T19:58:34.999738+00:00",
+      "state": "selected"
+    },
+    {
+      "at": "2026-08-18T19:58:40.006893+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:00:45.252123+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:00:50.259402+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:09:21.491581+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:09:26.499920+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:11:26.749536+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:11:31.756831+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:13:32.006948+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:13:37.017579+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:15:37.242372+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:15:42.250572+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:17:42.489273+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:17:47.497663+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:19:46.725911+00:00",
+      "state": "waiting_gpu"
+    },
+    {
+      "at": "2026-08-18T20:19:51.737733+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T20:24:08.296699+00:00",
+      "state": "prompts_draft"
+    },
+    {
+      "at": "2026-08-18T20:25:01.163625+00:00",
+      "state": "approved"
+    },
+    {
+      "at": "2026-08-18T20:25:03.168336+00:00",
+      "state": "portraits_rendering"
+    },
+    {
+      "at": "2026-08-18T20:26:40.621746+00:00",
+      "state": "portraits_review"
+    },
+    {
+      "at": "2026-08-18T20:26:41.625757+00:00",
+      "state": "rendering"
+    },
+    {
+      "at": "2026-08-18T20:30:23.083679+00:00",
+      "state": "rendered"
+    },
+    {
+      "at": "2026-08-18T20:30:28.334611+00:00",
+      "state": "published"
+    }
+  ],
+  "gates": {
+    "cast_s": 0.19729760399786755,
+    "approve_s": 51.86560943699442,
+    "total_s": 52.063
+  },
+  "final_state": "published",
+  "gate_hooks": [
+    {
+      "gate": "cast_done",
+      "command": "/home/kb/Desktop/projects/scriptorium-flash/tools/prune_cast.py --book-id pg-120",
+      "returncode": 0,
+      "seconds": 0.179
+    },
+    {
+      "gate": "prompts_draft",
+      "command": "/home/kb/Desktop/projects/scriptorium-flash/tools/prewarm.py --endpoint tw7wlntgpdetsc --workers 4 --out /home/kb/Desktop/projects/scriptorium-flash/runs/pg-120-runpod/prewarm.json",
+      "returncode": 0,
+      "seconds": 51.842
+    }
+  ],
+  "plate_count": 65
+}

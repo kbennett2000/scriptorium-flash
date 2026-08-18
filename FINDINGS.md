@@ -30,16 +30,27 @@ Rules for entries:
 | 2026-08-18 | Cycle 4, task 1 — Python 3.11.15 container: one local build, 13 local renders on home's RTX 5070 | $0.00 | no Runpod resource touched |
 | 2026-08-18 | Cycle 4, gate A — pinned 4090 endpoint, cold start + comparison render set + idle tail | **$0.0254124222** | `clientBalance` $49.8225049441 → $49.7970925219, settled over ten identical reads |
 | 2026-08-18 | Cycle 4, gate B — pre-warm 4 workers + full `pg-41` bake (18 renders) + warm-worker demo + idle tail | **$0.1037042686** | `clientBalance` $49.7970925219 → $49.6933882533, settled after teardown; `runs/pg-41-runpod/balance-settle.log` |
+| 2026-08-18 | Cycle 5, showcase bake — full `pg-120` bake (91 renders: 65 plates, 25 portraits, 1 cover) + pre-warm + 3 cold-load regens + warm-worker demo + idle tail | **$0.4282544446** | `clientBalance` $49.6933882533 → $49.2651338087, settled over six identical reads 45 s apart; `runs/pg-120-runpod/balance-settle.log` |
 
-**Total Runpod spend to date: $0.3011979300**
+**Total Runpod spend to date: $0.7294523746**
 
 Cycle 3: **$0.1720812392**, against a $0.20 estimate in the brief and a $0.45
 ceiling. Cycle 4: **$0.1291166908**, against a $0.20 plan and a **$0.30 ceiling**
 — both gates came in under their own estimates ($0.05 → $0.0254, $0.15 →
-$0.1037). Closing balance **$49.6933882533**.
+$0.1037).
+
+Cycle 5: **$0.4282544446**, in one line, against a **$0.55 ceiling** Kris raised
+from $0.40 to cover a book 5.6x longer than Sleepy Hollow. The pre-render
+estimate was $0.21 expected and $0.45 worst case; the outcome landed at the
+pessimistic end, and for a good reason — the estimate's optimistic case assumed
+the fan-out would stay narrow as it did in Cycle 4. It did not. Four workers
+opened, the bake ran 1.88 wide instead of 1.25, and four workers alive with
+60-second idle tails is what the extra money bought. Faster and dearer, from the
+same configuration, decided by Runpod's scaler rather than by us. Closing balance
+**$49.2651338087**.
 
 The total reconciles two ways to ten decimal places: the ledger rows sum to
-$0.3011979300, and the account has moved $49.9945861833 → $49.6933882533, which
+$0.7294523746, and the account has moved $49.9945861833 → $49.2651338087, which
 is the same number.
 
 Cycle 2 spent nothing: all three billing categories returned `[]` over an
@@ -72,6 +83,241 @@ Cycle 3's are live.
 
 ## 2026-08-18 — Cycle 5
 
+### Treasure Island: the pre-registered threshold failed, the audit passed, and the threshold was wrong
+
+The showcase book is *Treasure Island*, Project Gutenberg #120, ingested as `pg-120` and
+checked against its source before any GPU time, by the rule Cycle 1 established after
+*Usher* silently lost 48% of its text and reported no warnings. The procedure is now a
+script, `tools/verify_ingest.py`, so the second book is checked the same way as the
+first rather than a similar way. Output kept at `runs/pg-120/ingest-verify.json`.
+
+| Field | Value |
+|---|---|
+| Source words | **68,637** (after Project Gutenberg boilerplate is stripped) |
+| Stored words | **67,813** |
+| **Retention** | **98.80%** |
+| Threshold, set in advance | **99.5%** |
+| **Verdict against the threshold** | **FAIL** |
+| Pages after pagination | 134 |
+| Chapters detected | 34 |
+| Ingest warnings | `[]` |
+| Shortfall | 824 words, reconciling exactly to the enumerated lines |
+
+**The threshold failed and the book was baked anyway. That is a waiver, and it is
+recorded as one.** Moving the number afterwards to make it pass would have been the
+dishonest option and a much easier one.
+
+What the 824 words are, every one of them named and grouped:
+
+| Group | Lines | Words | What it is |
+|---|---:|---:|---|
+| contents | 35 | 564 | the table of contents, dot leaders included |
+| headings | 51 | 80 | the `PART` lines and Roman numerals, now the 34 chapter titles in `structure.json` |
+| other | 31 | 180 | title, byline, the dedication to S.L.O., and the verse *To the Hesitating Purchaser* |
+
+**Not one word of narrative prose is missing.** The stored text opens on the true first
+line of chapter I — `The Old Sea-dog at the Admiral Benbow / Squire Trelawney, Dr.
+Livesey, and the rest of these gentlemen having asked me…` — and closes on the true last
+line of the book, `…the sharp voice of Captain Flint still ringing in my ears: "Pieces of
+eight! Pieces of eight!"`. The 51 heading lines are not lost but relocated. The real loss
+is the 146 words of front matter, of which the verse dedication is the only part a reader
+would miss, and it appears nowhere in the bundle.
+
+As on pg-41, `warnings: []` is the *bad* sign rather than the good one:
+`chapters_undetected` fires only when detection finds nothing and the whole-text
+fallback keeps everything, so its absence means `_chapters_from_headings` ran — the path
+that drops text. Retention is the only thing that says whether that mattered.
+
+**The metric is wrong, and that is the finding.** A retention figure that counts a
+table of contents as body text is measuring the wrong denominator. Treasure Island's
+contents page is 564 words of chapter titles and dot leaders — whitespace tokenizing
+scores `THE BLACK SPOT . . . . . . 24` as nineteen words — and no edition would set it
+as prose. Excluding it, retention is **99.62%**, which clears the threshold that was set.
+
+pg-41 never exposed this because *Sleepy Hollow* has no contents page: the 99.5% figure
+was calibrated on a book that could not exercise the case it fails on. **Fix deferred,
+not applied:** retention should exclude contents pages and front matter from the
+denominator before the next book is judged by it. Changing it in the middle of a book
+it had just failed would have been indistinguishable from moving a goalpost, so it is
+written down instead and left for a cycle with nothing riding on it.
+
+A curiosity in the source, recorded rather than corrected: Gutenberg's own text numbers
+chapter XVIII as `XXVII`. It is a typo in the source and it survives into the chapter
+titles, because ingest reads headings rather than checking their arithmetic.
+
+### The showcase book: 91 renders, the fleet finally opened, and it ran 1.88 wide
+
+One complete `pg-120` bake, text steps at home, every render on a Runpod endpoint
+(`tw7wlntgpdetsc`) pinned to a single `NVIDIA_GEFORCE_RTX_4090`, plates fanned out four
+at a time. Sources: `runs/pg-120-runpod/{run.json,timing.json,prewarm.json,warm-demo.json,balance-settle.log}`.
+
+| | |
+|---|---:|
+| Pages | 134 |
+| Words stored | 67,813 |
+| Plates | 65 |
+| Portraits | 25 |
+| Cover | 1 |
+| **Renders** | **91** |
+| Chapters | 34 |
+| Bundle revision | 4 |
+| Reader download | 7.14 MB across 320 files |
+
+Against the Cycle 4 headline bake, this is **5.1× the renders** (91 against 18) on a book
+**5.6× longer** (67,813 words against 12,187).
+
+**The fan-out opened this time, and that is the difference from Cycle 4.**
+
+| | Cycle 4, `pg-41` | Cycle 5, `pg-120` |
+|---|---:|---:|
+| Renders | 18 | 91 |
+| Work the workers reported | 92.13 s | **456.36 s** |
+| Wall clock that work occupied | 73.76 s | **242.67 s** |
+| **`overlap_factor`** | **1.249** | **1.881** |
+| Warm render median | 4.7725 s (n=18) | **4.3080 s (n=91)** |
+
+Configured concurrency was 4 in both runs. Cycle 4 got 1.25 wide because only one worker
+ever warmed and two sat throttled; this run reached **1.88 wide**, and `/health` during
+the render phase showed four workers alive (`idle 1, running 3`). The same endpoint
+configuration, the same image, the same pin — **the difference is whether Runpod's
+scaler opened the workers**, which is not something the caller controls and not
+something the configuration predicts. Two runs, two answers.
+
+The warm median at 4.3080 s (n=91) sits within 1% of pg-41's warm-only 4.2790 s (n=16),
+which is the reassuring part: 91 renders on a different book found the same per-image
+number.
+
+**The pre-warm defect reproduced exactly.** Four concurrent 512 px requests all returned
+`COMPLETED`, and `prewarm.py` — carrying the Cycle 4 fix — reported the truth anyway:
+
+```
+NOTE: 1 of 4 requests reported a model load. The rest were served by an
+      already-warm worker, so this warmed 1 distinct worker(s), not 4.
+WARNING: asked for 4 warm workers, health reports 1.
+```
+
+Only worker 0 loaded a model (3.513 s, render 10.821 s); the other three reported
+`model_load_s: 0` and rendered in 3.78–4.35 s. The whole pre-warm took **50.98 s**, not
+the ~490 s Cycle 4 paid, because the image was already on a worker from provisioning —
+a cold start is only cold once per worker.
+
+**Two cold-load images shipped into the bake and were replaced before publication.**
+`portrait-ben-gunn` (model load 3.508 s) and `portrait-hunter` (2.508 s) were each some
+worker's first render after staging. Both were regenerated through the bakery's own
+regen route while the endpoint was still up, which post-publish writes an additive `-rN`
+variant beside the untouched original and bumps the bundle revision; the reader resolves
+highest-`rN`, so it downloads the replacement.
+
+**What cannot be claimed about that, and is not.** The bake's render phase records the
+worker's whole echo, but **the regen route records only width, height and seed** — no
+`model_load_s`. So 88 of the 91 shipped images are *positively verified* warm from their
+own echoes, and 3 are warm by *inference*: they were rendered against a fleet whose
+`/health` reported warm slots, and each returned in seconds rather than showing a ~3 s
+stage. That is weaker evidence and it is labelled as such. The tooling was corrected to
+say so rather than to report a clean sweep it could not see.
+
+**The live-demo measurement.** One request against an already-warm worker immediately
+after the bake, at 832×832: **7.19 s** end to end, of which **3.559 s** was the render,
+`model_load_s` 0 and `delayTime` 1.1 s.
+
+**Cost: $0.4282544446**, settled. Opening $49.6933882533, closing **$49.2651338087**,
+against a $0.55 ceiling Kris raised for this book.
+
+That is **1,402 billed worker-seconds** at $1.10/hr for 456.36 s of reported render work
+— a ratio of 3.07, which is the price of four workers being alive with 60-second idle
+tails rather than of the renders themselves. The endpoint existed for 61 minutes with
+four standby workers throughout, and only the render window billed: **standby remained
+$0.00 for the fourth cycle running**, measured here across a 45-minute stall in which the
+balance did not move at ten decimal places.
+
+**The settle loop earned itself on the first use.** The balance read
+`49.2718678087` five times in a row across three and a half minutes, and then dropped
+again to `49.2651338087` — a further $0.0067340000 posting late.
+`render_bench.settled_balance()`, which accepts two equal reads 30 s apart, would have
+recorded the wrong number, and that is exactly how Cycle 3's two `summary.json` files
+came to disagree with the ledger. `tools/settle_balance.py` demands six identical reads
+45 s apart and caught it.
+
+**The wall clock is not comparable to pg-41 and is not offered as a headline.** The bake
+took 50 m 48 s, but roughly 25 minutes of that is the GPU-contention stall described
+below, and `bake_timing.py`'s integrity guards flagged the window themselves
+(`COUNT MISMATCH`, and 44 foreign local ComfyUI renders attributed inside it, because
+another session was rendering on the same box). The render-phase numbers above are
+sound — they come from the workers' own echoes, not from log pairing — but the
+end-to-end figure is contaminated and stating it as a comparison would be dishonest.
+
+### The showcase book is on Vercel, and what it cannot do there
+
+**<https://scriptorium-reader.vercel.app>** — the real reader, unmodified, serving
+Treasure Island from a static export.
+
+The reader's read path is five GET routes (`/health`, `/api/users`, `/api/library`,
+`/api/library/{id}/manifest`, `/api/library/{id}/files/{path}`), and a published bundle
+is immutable static files, so the whole thing mirrors onto a static host with no server
+at all. `tools/export_static_reader.py` lays those routes out as files — importing
+`resolve_reader_files` from the Scriptorium server rather than reimplementing the
+highest-`rN`-wins rule — and a `vercel.json` rewrite resolves the one structural
+conflict, that `/api/library` must be a file while `/api/library/{id}/` must be a
+directory.
+
+Verified in a real browser rather than by status code: `tools/verify_reader.mjs` drives
+Chromium through the profile picker, the shelf, a full checkout of all 320 files, opening
+the book, and a page with an illustration on it, failing on any unexpected 4xx or console
+error. It passes.
+
+**What it cannot do, stated plainly rather than left for someone to discover on stage:**
+the sync routes are PUTs (`/api/sync/annotations/…`, `/api/sync/positions/…`), and they
+have nowhere to go on a static host. Highlights and reading position will not persist
+across devices. The reader already probes `/health` and degrades when the server is
+unreachable, so this is a **reduced reader, not a broken one** — reading, search, the
+cast page and every illustration work fully offline once the book is downloaded, which is
+the whole of what a fallback demo needs.
+
+One inconsistency worth recording: after the three regens the bundle manifest's own
+`total_bytes_reader` reads 7.28 MB while `GET /api/library` computes 7.14 MB. The shelf
+figure is the correct one — it resolves `-rN` variants, and the export matches it to the
+byte. The manifest field counts superseded originals it should not.
+
+### The home baseline assumes an uncontended GPU, and 388.63 s was measured on a quiet machine
+
+The showcase bake stalled mid-way through its prompt phase, and the cause is worth more
+than the delay was. `illustration-prompt` calls went from pg-41's **2.523 s** median to
+**26–155 s**, a 10–60× collapse, with no change to the model, the prompt, or the code.
+
+The machine explains it exactly. The home RTX 5070 has 12,227 MiB. Another user of the
+same desktop was rendering through the shared local ComfyUI, which held **9,312 MiB** of
+it. Squeezed into what was left, ollama kept **0.13 GB of `qwen3.5:9b`'s 6.19 GB** in
+VRAM and ran the other 98% on the CPU:
+
+```
+$ curl -s localhost:11434/api/ps
+qwen3.5:9b   size_vram=0.13GB   size=6.19GB
+```
+
+Once the other session ended and the model was unloaded so it would reload with room to
+land, `size_vram` came back as **5.30 GB of 5.30 GB** and latency returned to
+**1.9–2.8 s** — a 37× recovery, measured across the same transform on the same book
+minutes apart.
+
+**Two things follow, and both belong in the log.**
+
+The first is a caveat this file owes its own headline. **The 388.63 s home baseline was
+measured on a quiet machine**, with the whole card available to the text model. It is a
+fair number and it is the right comparison, but it is a *best-case* home number, not a
+typical one. A home bakery on a desktop somebody also uses will not reproduce it, and
+nothing in the baseline says so until now.
+
+The second is an argument for the rented card that this project had not thought to make.
+The 4090 on Runpod is not competing with a browser, an editor, or somebody else's image
+generation. Its 24 GB is not shared with whatever else the machine is doing. The talk has
+been framing serverless GPU as *faster silicon plus fan-out*; **isolation is a third
+thing, and on this evidence it is worth more than either** — 37× on the text steps
+against 1.59× on the renders. It is also the one an audience running models on their own
+desktops will recognize immediately.
+
+Recorded rather than acted on: nothing was changed about how the bakery manages VRAM,
+and no measurement in this file was re-run. The stall cost no money — the endpoint was
+provisioned throughout with four standby workers and the balance did not move.
 ### The image is not 42 GB, and the number that matters is 17.72 GB
 
 Three instruments describe this one image and they disagree, so earlier entries in

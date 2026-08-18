@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 import urllib.error
@@ -86,7 +87,31 @@ def main() -> int:
         "approving, so an out-of-range selection is caught before any GPU time "
         "is spent on rendering",
     )
+    ap.add_argument(
+        "--at-gate",
+        action="append",
+        default=[],
+        metavar="STATE=COMMAND",
+        help="run COMMAND when the bake reaches gate STATE, before the gate is "
+        "cleared; repeatable. The two useful ones on a long book are "
+        "`cast_done=` , the last moment cast.json can be corrected before the "
+        "ledger, selection, prompt and portrait phases all derive from it, and "
+        "`prompts_draft=`, where a pre-warm belongs: every render happens after "
+        "that gate, so pre-warming there rather than at the start of the run "
+        "keeps warm workers from billing through a text phase that on a "
+        "full-length book runs twenty minutes. A non-zero exit leaves the gate "
+        "closed.",
+    )
     args = ap.parse_args()
+
+    hooks: dict[str, str] = {}
+    for spec in args.at_gate:
+        state, sep, command = spec.partition("=")
+        if not sep or state not in GATES:
+            raise SystemExit(
+                f"--at-gate wants STATE=COMMAND with STATE in {sorted(GATES)}; "
+                f"got {spec!r}")
+        hooks[state] = command
 
     body = {
         "source": {
@@ -172,6 +197,33 @@ def main() -> int:
                     log["t_end"] = now()
                     flush()
                     return 0
+
+            if state in hooks:
+                print(f"[{now()}] --at-gate {state}: running hook", flush=True)
+                t0 = time.monotonic()
+                rc = subprocess.call(hooks[state], shell=True)
+                entry = {
+                    "gate": state,
+                    "command": hooks[state],
+                    "returncode": rc,
+                    "seconds": round(time.monotonic() - t0, 3),
+                }
+                log.setdefault("gate_hooks", []).append(entry)
+                print(f"[{now()}] hook exited {rc} after {entry['seconds']:.1f}s",
+                      flush=True)
+                flush()
+                if rc != 0:
+                    # Leave the gate closed. At prompts_draft that means a failed
+                    # pre-warm never lets renders start against a cold fleet --
+                    # a worker's first render after a model load does not match
+                    # the renders after it, so that is a fidelity problem and not
+                    # only a slow one. At cast_done it means a bad cast edit does
+                    # not propagate into every phase downstream of it.
+                    print("hook failed -- leaving the gate closed", flush=True)
+                    log["final_state"] = state
+                    log["t_end"] = now()
+                    flush()
+                    return 1
 
             call("POST", f"/api/admin/books/{book_id}/{GATES[state]}")
             waited = time.monotonic() - gate_opened_at

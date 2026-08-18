@@ -1,0 +1,80 @@
+{
+  "t_start": "2026-08-18T19:07:20.702911+00:00",
+  "t_end": "2026-08-18T19:25:47.589425+00:00",
+  "book_id": "pg-120",
+  "request": {
+    "source": {
+      "kind": "gutenberg",
+      "gutenberg_id": 120,
+      "title": "Treasure Island",
+      "author": "Stevenson, Robert Louis"
+    },
+    "bake": {
+      "style_id": "oil-painting",
+      "density_preset": "lavish",
+      "images_per_scene": 1,
+      "era": "1750s Bristol and the Spanish Main",
+      "portraits_enabled": true,
+      "portrait_review": false,
+      "title": "Treasure Island",
+      "author": "Stevenson, Robert Louis"
+    }
+  },
+  "transitions": [
+    {
+      "at": "2026-08-18T19:07:21.520317+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-18T19:07:21.524077+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-18T19:07:25.529978+00:00",
+      "state": "mentions_running"
+    },
+    {
+      "at": "2026-08-18T19:14:19.324556+00:00",
+      "state": "mentions_done"
+    },
+    {
+      "at": "2026-08-18T19:14:24.331698+00:00",
+      "state": "cast_running"
+    },
+    {
+      "at": "2026-08-18T19:15:38.472650+00:00",
+      "state": "cast_done"
+    },
+    {
+      "at": "2026-08-18T19:15:39.476878+00:00",
+      "state": "cast_approved"
+    },
+    {
+      "at": "2026-08-18T19:15:43.482653+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-18T19:23:03.247296+00:00",
+      "state": "ledger_done"
+    },
+    {
+      "at": "2026-08-18T19:23:08.254244+00:00",
+      "state": "selected"
+    },
+    {
+      "at": "2026-08-18T19:23:13.261758+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-18T19:25:47.577711+00:00",
+      "state": "prompts_draft"
+    }
+  ],
+  "gates": {
+    "cast_s": 0.00257148701348342,
+    "approve_s": 0.0,
+    "total_s": 0.003
+  },
+  "final_state": "prompts_draft",
+  "plate_count": 65
+}
