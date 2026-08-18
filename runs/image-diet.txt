@@ -1,0 +1,38 @@
+measured pull   17.72 GB in 478.2 s = 37.1 MB/s
+cold start      489.82 s wall, of which 98% is pull
+
+layer                               unpacked    pulled  % of pull
+models (fetch_models.py)              10.80G     9.95G      56.2%
+torch 2.11.0+cu128 + reqs              8.48G     4.69G      26.5%
+CUDA 12.8 apt libraries                3.11G     2.06G      11.6%
+cuDNN 9 apt                            1.05G     0.70G       4.0%
+python3.11 apt + deadsnakes            0.36G     0.06G       0.4%
+cuda-cudart + cuda-compat              0.20G     0.11G       0.6%
+ComfyUI clone                          0.14G     0.10G       0.6%
+ubuntu:22.04 base                      0.09G     0.03G       0.2%
+everything else                        0.02G     0.01G       0.1%
+TOTAL                                 24.26G    17.72G     100.0%
+
+candidate removal                                       saved     pull
+                                                     (pulled)     time
+Drop the CUDA base image (nvidia/cuda -> ubuntu:22.04)    2.76G    74.5s
+Store the CLIP vision encoder fp16 instead of fp32      1.16G    31.4s   <-- fidelity risk
+Drop nccl + nvshmem + cusparseLt from the torch wheels    0.56G    15.1s
+Drop ComfyUI workflow-template media packages           0.20G     5.5s
+Store the SDXL VAE fp16 instead of fp32                 0.15G     4.2s   <-- fidelity risk
+Drop av, av.libs, botocore, boto3, OpenGL               0.09G     2.5s
+TOTAL                                                   4.94G   133.2s
+
+of which no-fidelity-risk:                              3.62G    97.6s
+
+image after the full diet   12.78 GB pulled (28% smaller)
+cold start after the diet   ~357 s, against 490 s now
+
+Stated plainly: 8.2 min becomes ~5.9 min. The diet does not remove the cold start,
+it shortens it. A demo still cannot hide a six-minute wait; the warm-up
+procedure is what removes it, and that is free.
+
+considered and rejected:
+  triton (641 MB)                    torch imports it for inductor; removing it is a coin-flip on import and saves 0.355 GB. Not worth the risk for 10 s of pull.
+  SDXL base checkpoint (6.94 GB)     already F16. There is no smaller honest variant of the model this project pinned and verified.
+  pip cache                          PIP_NO_CACHE_DIR=1 is already set. Nothing to reclaim.

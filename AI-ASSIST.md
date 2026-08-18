@@ -22,6 +22,143 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-18 — The MCP server is open source, so the probe lifted no rule and cost nothing
+
+Owed since Cycle 3: *which of Runpod's API surfaces does their own MCP server
+call?* The plan for it assumed a supervised live session with the `mcp__runpod`
+deny temporarily lifted. That was not needed. The server is public —
+[runpod/runpod-mcp](https://github.com/runpod/runpod-mcp), Apache-2.0, TypeScript,
+pushed the same day this was read — so the question is a reading question, and
+the answer is better than a live probe would have given: a probe shows which
+surface answered one call, the source shows the routing rule for all of them.
+
+**`.claude/settings.json` is unchanged.** No deny was lifted, no key was used, no
+request was made against the account.
+
+### Four surfaces, and the one that is a different host
+
+The routing core is `src/_shared/backend.ts`, which is deliberately pure — env,
+transport and the version probe are all injected, so it is testable with no
+network. Four base URLs, four roles:
+
+| Surface | Default base | What routes there |
+|---|---|---|
+| REST v2 | `https://api.runpod.io/v2` | the default for every resource |
+| REST v1 | `https://rest.runpod.io/v1` | opt-in per resource, and forced for `jobs` |
+| Serverless runtime | `https://api.runpod.**ai**/v2` | `jobs` — a different service on a different host |
+| GraphQL | `https://api.runpod.io/graphql` | the things REST has no home for (below) |
+
+The `.io` / `.ai` split is worth saying out loud because it is easy to read past.
+`restV2Base` is `api.runpod.io/v2` and `serverlessBase` is `api.runpod.ai/v2` —
+same path, different domain, different service. Their own comment on the
+`V1_ONLY` set says it plainly: `jobs: serverless runtime, lives on
+api.runpod.ai/v2 (a different service)`. This project has been calling that host
+all cycle without a name for it.
+
+Version precedence is `RUNPOD_REST_VERSION_<RESOURCE>` → `RUNPOD_REST_VERSION` →
+default `v2`. `restVersionSummary()` folds the result into the MCP
+`serverInfo.version` string, so a plain `initialize` reveals whether a server is
+pinned to v1, v2 or `auto` without inspecting anyone's deployment environment.
+That is a good piece of design: the client can find out how the server is
+configured by connecting to it.
+
+### GraphQL is where the catalogue lives, including the one Cycle 3 could not read
+
+GraphQL is not a legacy leftover here. It carries four things, three of them with
+no REST equivalent at all:
+
+- **Hub listings** (`listings(input: {})`) — prebuilt workers and pod templates.
+  Their comment: *"There is no REST home for the Hub yet, so this is
+  version-agnostic: the same GraphQL path is used on v1 and v2."*
+- **Public Endpoints** (`allAiApiPublicConfigs`) — the managed pay-per-use model
+  APIs. Also "no REST home yet". **This is the catalogue Cycle 3 spent an
+  afternoon on**, the one that returned four opaque 500s over REST. It was never
+  a REST resource; the console reads it over GraphQL.
+- **GPU types and data centers on v1** (`gpuTypes`, `dataCenters`) — v2 moved
+  these to a REST catalogue at `GET /v2/catalog/*`, so GraphQL is the v1 path only.
+- **Authenticated console operations** via `graphqlAuthed`, "used for console-only
+  operations that have no REST home yet (e.g. deploying a Hub release via
+  `saveEndpoint`)".
+
+One constraint recorded in their code that is not in the public docs anywhere I
+could find: **the unauthenticated GraphQL path does not accept GraphQL
+variables.** Only the authenticated path does. So every filter on the public
+catalogue queries — search, category, type, owner — is applied client-side after
+fetching the whole listing. That is why `list-hub-repos` pulls the full catalogue
+and then filters in TypeScript.
+
+### `saveEndpoint` sets `workersMin` and `workersMax`, and never mentions `workersStandby`
+
+The Hub deploy path builds an `EndpointInput` and sends it through the
+`saveEndpoint` GraphQL mutation. The input sets `workersMin`, `workersMax`,
+`idleTimeout`, `scalerType`, `scalerValue`, `executionTimeoutMs`, `flashBootType`
+and a template. The mutation's selection set reads back `workersMin`,
+`workersMax`, `idleTimeout`, `scalerType`, `scalerValue`, `flashBootType` and
+`templateId`.
+
+`workersStandby` appears in neither.
+
+That completes a picture this project has been assembling one surface at a time,
+and it is worse than [runpod/flash#364](https://github.com/runpod/flash/issues/364)
+describes on its own. The field that decides how many workers are held warm is:
+
+| Surface | `workersStandby` |
+|---|---|
+| `runpodctl serverless list` / `get` | omitted |
+| `runpodctl serverless update` | no flag |
+| `PATCH /v1/endpoints/<id>` | rejected — *"not in input schema"* |
+| `GET /v1/endpoints` | **reported** — the only surface that shows it |
+| `saveEndpoint` GraphQL, via their own MCP server | neither set nor read back |
+
+So a user deploying a Hub release through Runpod's own MCP server gets whatever
+standby count the platform applies, is told `workersMin` and `workersMax`, and is
+given no hint that a third number exists. This is not a new defect and nothing
+new was filed for it — it is the same defect as #364, seen from the vendor's own
+tooling, and it is the strongest evidence yet that the problem is the field's
+visibility rather than one client's arithmetic.
+
+### Credit where due
+
+The `auto` version probe is careful work, and the care is in a comment rather
+than only in a commit message. `auto` resolves by probing `GET
+{v2}/catalog/gpus` once at startup — but **only on stdio**, and it is treated as
+v1 on hosted HTTP, because "a warm instance serves many keys, so a cached probe
+verdict would leak across users." Multi-tenancy reasoned about at the level of a
+cached boolean.
+
+Two smaller things in the same spirit. The probe verdict is passed in as a
+resolved boolean rather than a thunk, with the reason written down: a
+`() => Promise<boolean>` "would be truthy even when the probe failed, silently
+forcing v2." And transient failures — 5xx, and 401/403 — are deliberately *not*
+cached, so a key whose v2 scope is widened later, or an auth blip during a
+rollout, does not pin the process to v1 for its lifetime with no recovery short
+of a restart.
+
+And `publicGraphqlBase` and `authedGraphqlBase` are separate environment
+variables despite having the identical default, for a reason worth quoting:
+`RUNPOD_PUBLIC_GRAPHQL_URL` is the documented credential-free discovery override
+and "gets pointed at stubs freely, so routing authed calls through it would turn
+'point this anywhere' into 'send the caller's API key there'." That is the class
+of bug that ships in a lot of clients, and they wrote a second variable to avoid it.
+
+Set against the skills audit in this file, which objected to those skills pushing
+users toward a long-lived plaintext API key over scoped OAuth: the MCP server's
+own code is markedly more careful about credentials than the skill text that
+recommends installing it.
+
+### One thing this file was missing
+
+Two surfaces were not recorded anywhere in this project before now: **REST v2**
+(`https://api.runpod.io/v2`, machine-readable at `/openapi.json`) and the
+**GraphQL schema reference** at `https://graphql-spec.runpod.io/`. Every REST
+observation logged in earlier entries — the `workersStandby` readback, the
+`PATCH` rejection — was made against v1, which their own adapter now treats as
+the opt-in path rather than the default. Nothing measured is wrong, but it was
+measured on the older surface, and that is worth knowing before any of it is
+repeated.
+
+---
+
 ## 2026-08-18 — Deploying and measuring: three silent failures
 
 The render numbers are in [FINDINGS.md](FINDINGS.md). Three things in the tooling
@@ -127,7 +264,11 @@ than trusting the returned id, and clear the cache relative to the CWD:
 find . -name resources.pkl -path '*/.flash/*'
 ```
 
-### Standby workers track `workersMax`, not `workersMin` — RECORDED, NOT YET FILED
+### Standby workers track `workersMax`, not `workersMin` — FILED
+
+**FILED 2026-08-18 as a comment on [runpod/flash#364](https://github.com/runpod/flash/issues/364#issuecomment-5332749910).** Added before posting: the endpoint id (`n3xsvm2f30jwa5`), the `templateId` and `gpuTypeIds` from the same readback, a minimal reproduction differing from the issue's only in the ceiling, and the point that suggestion 1 in the original report still fixes it -- what changes is the description of the defect, not the remedy.
+
+Duplicate search: no search performed, and none applicable -- this is a follow-up on our own issue, not a new report.
 
 Cycle 3 filed [runpod/flash#364](https://github.com/runpod/flash/issues/364) on
 `workers=(0, 1)` deploying `workersStandby: 1`. Cycle 4 widened the endpoint to
@@ -142,6 +283,11 @@ rather than a cost. **This is a follow-up comment on #364 and has not been
 posted.** Gate B was approved as the plain option, not the variant that included
 posting it; it stays unposted pending approval rather than being filed on the
 strength of an approval that was for something else.
+
+*Annotation, Cycle 5:* the approval arrived and the comment went up — the two
+paragraphs above stand as the record of what was held back and why. The wait cost
+nothing: #364 was still open with zero comments and no triage label when the
+follow-up was posted, a day after filing.
 
 ### `gpuTypeIds` is advisory when it is a list
 
@@ -1315,6 +1461,11 @@ Also adopted, outside the skills' advice: the Runpod MCP server is blocked for
 this session via `.claude/settings.json`, because it can manage the account and
 spend money, and the API key lives at `~/.runpod/config.toml` — outside this
 repository, where it cannot be committed.
+
+*Annotation, Cycle 5:* the block was never lifted, and did not need to be. The
+question it was expected to cost us — which API surfaces the MCP server calls —
+was answerable from the server's source, which is public. See the entry at the
+top of this file. The deny rule stands unchanged.
 
 ### Open item
 
