@@ -70,6 +70,102 @@ Cycle 3's are live.
 
 ---
 
+## 2026-08-18 — Cycle 5
+
+### The image is not 42 GB, and the number that matters is 17.72 GB
+
+Three instruments describe this one image and they disagree, so earlier entries in
+this file used two of them interchangeably. Measured together, on the same image on
+the same day:
+
+| Instrument | Value | What it is |
+|---|---:|---|
+| `docker images` DISK USAGE | **42.0 GB** | compressed blobs *and* the unpacked snapshot, added together |
+| `docker history`, layers summed | **24.26 GB** | what it unpacks to on the worker |
+| registry manifest, 19 layers summed | **17.72 GB** | **what Runpod pulls** |
+
+17.72 + 24.26 = 42.0, to three significant figures. The 42 GB is not a size; it is
+two sizes, counted twice by the containerd store. `docker images` also reports
+CONTENT SIZE 17.7 GB in the next column, which agrees with the manifest.
+
+This corrects the attribution earlier in this file, which reasoned about cold start
+from "42 GB uncompressed against 41.7 GB — 0.7% larger". Both of those are
+double-counted figures; the comparable pair is 17.66 → 17.72 GB, a 0.34% difference,
+which makes the 63 s pull difference even less explicable by size than it looked.
+The conclusion there does not change — it was already recorded as unattributed — but
+the arithmetic offered in support of it should not be reused.
+
+### The image carries two complete CUDA stacks, and PyTorch uses neither of the apt ones
+
+The base is `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`, which apt-installs CUDA
+12.8 (3.11 GB) and cuDNN 9 (1.05 GB). The torch wheels then bring their own, 4.30 GB
+of `nvidia/*` packages inside site-packages.
+
+`ldd` settles which set is live, and it is not close:
+
+```
+$ ldd /usr/local/lib/python3.11/dist-packages/torch/lib/libtorch_cuda.so
+  libcudart.so.12    => .../nvidia/cuda_runtime/lib/libcudart.so.12
+  libcublas.so.12    => .../nvidia/cublas/lib/libcublas.so.12
+  libcudnn.so.9      => .../nvidia/cudnn/lib/libcudnn.so.9
+  libcufft.so.11     => .../nvidia/cufft/lib/libcufft.so.11
+  libcusparse.so.12  => .../nvidia/cusparse/lib/libcusparse.so.12
+  libcusparseLt.so.0 => .../nvidia/cusparselt/lib/libcusparseLt.so.0
+  libcurand.so.10    => .../nvidia/curand/lib/libcurand.so.10
+  libnccl.so.2       => .../nvidia/nccl/lib/libnccl.so.2
+```
+
+Every one resolves into the pip wheels. Not one resolves to `/usr/local/cuda-12.8`
+(2.79 GB) or to the apt `libcudnn*` in `/usr/lib/x86_64-linux-gnu` (1.00 GB). The
+CUDA base image is 2.76 GB of pull that this workload never opens.
+
+### The diet, priced in pulled bytes
+
+Pull is **98%** of the cold start — 478.2 s of 489.82 s — so a diet is worth exactly
+what it removes from the pull, at the measured **37.1 MB/s**. Compression ratios are
+measured per layer rather than assumed, because they differ: safetensors are
+already-compressed weights and shrink by 8%, while shared objects and Python trees
+roughly halve. Produced by `tools/image_diet.py`, output kept at `runs/image-diet.txt`.
+
+| Candidate removal | Pulled bytes saved | Pull time saved | Fidelity risk |
+|---|---:|---:|---|
+| Drop the CUDA base image (`nvidia/cuda` → `ubuntu:22.04`) | 2.76 GB | 74.5 s | none — proved unused by `ldd` |
+| Store the CLIP vision encoder fp16 rather than fp32 | 1.16 GB | 31.4 s | **moves pixels; must pass `verify_port.py` first** |
+| Drop `nccl` + `nvshmem` + `cusparseLt` from the torch wheels | 0.56 GB | 15.1 s | none if torch still imports |
+| Drop the ComfyUI workflow-template media packages | 0.20 GB | 5.5 s | none |
+| Store the SDXL VAE fp16 rather than fp32 | 0.15 GB | 4.2 s | **moves pixels; must pass `verify_port.py` first** |
+| Drop `av`, `av.libs`, `botocore`, `boto3`, `OpenGL` | 0.09 GB | 2.5 s | none |
+| **Total** | **4.94 GB** | **133.2 s** | |
+| of which carrying no fidelity risk | 3.62 GB | 97.6 s | |
+
+The two fp16 candidates are listed because they are real bytes, not because they are
+recommended. This project's whole argument rests on pixel comparisons against home,
+and re-quantising a weight file is exactly the kind of change that would invalidate
+them. They are free to test locally with `verify_port.py`, and they should not be
+adopted without that test. The SDXL base checkpoint is **already F16** (2,515 F16
+tensors), so the largest file in the image offers nothing.
+
+**What the diet actually buys.** 17.72 GB becomes 12.78 GB, 28% smaller, and the cold
+start goes from **490 s to about 357 s**. Stated in the units a talk cares about: 8.2
+minutes becomes 5.9 minutes. **The diet does not remove the cold start, it shortens
+it**, and a demo still cannot hide a six-minute wait. The thing that removes the cold
+start is the warm-up procedure, and that is free.
+
+### The rebuild gate: about 3.5 hours of wall clock to save 2.2 minutes of cold start
+
+Scaling the measured push — 17.72 GB in 3 h 56 m 53 s, an effective 1.246 MB/s from
+this house — a 12.78 GB image re-pushes in about **2 h 51 m**. A base-image change
+invalidates the build cache, so the build is nearer the 31 m 29 s first build than
+the 12 m 35 s warm one, plus 127.3 s of model staging; call it 35 minutes. Local
+pixel verification of anything fp16 is free and adds perhaps 10 minutes.
+
+**Total: roughly 3 h 30 m to 4 h of wall clock, to take the cold start from 8.2 to
+5.9 minutes.** No re-push has been made and none will be without a decision. This is
+a wall-clock question against the days remaining before the talk, not a money
+question — the push itself is free.
+
+---
+
 ## 2026-08-18 — Cycle 4
 
 ### The default bake is unchanged by ADR-0036 and ADR-0037, proved three ways
