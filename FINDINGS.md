@@ -864,6 +864,22 @@ same work.
 | **Cost per warm plate** | $0 marginal | **$0.002656** | **$0.001742** |
 | Cost, whole 7-render pass | — | **$0.0376933074** | **$0.0439145185** |
 
+> **Corrected 2026-08-18.** The two Runpod figures are the *upper* of the two
+> middle values of a six-sample set, not the median. `render_bench.py` computed
+> `sorted(...)[n // 2]`, which is the median only for odd n. The true medians are
+> **4.2175 s** (4090) and **11.937 s** (24 GB tier) — so against home's 7.595 s the
+> 4090 was **44.5% faster** rather than 42.0%, and the 24 GB tier **57.2% slower**
+> rather than 63.0%. The two rows below inherit the same error.
+>
+> Home's 7.595 s is unaffected: it comes from `bake_timing.py`, which uses
+> `statistics.median`, on n=8. The Runpod figures are left in place because they
+> are what the Cycle 3 artifacts contain and what its commit message quotes. The
+> tool now emits `statistics.median` as `warm_render_median_s` and keeps the index
+> form beside it as `warm_render_upper_middle_s`, so both stay reproducible.
+>
+> No conclusion moves: the 4090 was faster than home and the cheaper tier slower,
+> by a slightly larger and a slightly smaller margin respectively.
+
 Home's second reference bake, `pg-1952`, gives 7.615 s (n=6), so the home
 constant is stable across books at ~7.6 s.
 
