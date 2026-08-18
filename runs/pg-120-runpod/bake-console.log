@@ -1,0 +1,95 @@
+
+[1m=== 1. bakery -> runpod backend ===[0m  19:39:34Z
+  RENDER_BACKEND=runpod
+  RUNPOD_ENDPOINT_ID=tw7wlntgpdetsc
+  RENDER_CONCURRENCY=4
+  RENDER_CARD=NVIDIA GeForce RTX 4090
+
+[1m=== 2. clear pg-120 ===[0m  19:39:40Z
+{"deleted":"pg-120","removed":["work/pg-120","jobs/pg-120.json"]}
+
+[1m=== 3. bake pg-120  (text free; PAID from the prompt gate) ===[0m  19:39:40Z
+[2026-08-18T19:39:40.709955+00:00] creating book (ingest runs inline, this blocks)
+[2026-08-18T19:39:41.626203+00:00] book_id=pg-120 state=ingested warnings=[]
+[2026-08-18T19:39:41.628116+00:00] started
+[2026-08-18T19:39:41.629470+00:00] -> ingested
+[2026-08-18T19:39:45.635749+00:00] -> mentions_running
+[2026-08-18T19:48:09.646070+00:00] -> mentions_done
+[2026-08-18T19:48:14.654735+00:00] -> cast_running
+[2026-08-18T19:49:36.817092+00:00] -> cast_done
+[2026-08-18T19:49:36.817247+00:00] --at-gate cast_done: running hook
+  doctor               -> dr-livesey           (21 pages folded in)
+  skip livesey: not in cast
+  skip doctor-livesey: not in cast
+  long-john            -> silver               (9 pages folded in)
+  john                 -> silver               (3 pages folded in)
+  cook                 -> silver               (4 pages folded in)
+  squire               -> squire-trelawney     (22 pages folded in)
+  trelawney            -> squire-trelawney     (15 pages folded in)
+  skip mr-trelawney: not in cast
+  hawkins              -> jim                  (15 pages folded in)
+  blind-man            -> pew                  (3 pages folded in)
+
+characters  69 -> 61
+majors      33 -> 25   (= portraits to render)
+
+left alone on purpose:
+  captain: 'the captain' is Billy Bones at the Admiral Benbow for the whole of Part One and Captain Smollett from Part Two on. One slug, two people; merging it into either is wrong for half the book.
+  dick: reduce_cast attached 'Israel Hands' to Dick's aliases, but Dick Johnson and Israel Hands are different pirates. Merging `dick` and `hands` would act on that bad alias rather than on the text.
+
+wrote /home/kb/scriptorium-data/work/pg-120/cast.json
+[2026-08-18T19:49:36.996585+00:00] hook exited 0 after 0.2s
+[2026-08-18T19:49:37.014556+00:00] cleared cast_done gate in 0.20s
+[2026-08-18T19:49:38.016095+00:00] -> cast_approved
+[2026-08-18T19:49:41.020609+00:00] -> ledger_running
+[2026-08-18T19:49:53.043587+00:00] -> waiting_gpu
+[2026-08-18T19:49:58.050665+00:00] -> ledger_running
+[2026-08-18T19:58:29.992957+00:00] -> ledger_done
+[2026-08-18T19:58:34.999745+00:00] -> selected
+[2026-08-18T19:58:40.006900+00:00] -> prompts_running
+[2026-08-18T20:00:45.252131+00:00] -> waiting_gpu
+[2026-08-18T20:00:50.259409+00:00] -> prompts_running
+[2026-08-18T20:09:21.491589+00:00] -> waiting_gpu
+[2026-08-18T20:09:26.499927+00:00] -> prompts_running
+[2026-08-18T20:11:26.749544+00:00] -> waiting_gpu
+[2026-08-18T20:11:31.756839+00:00] -> prompts_running
+[2026-08-18T20:13:32.006957+00:00] -> waiting_gpu
+[2026-08-18T20:13:37.017587+00:00] -> prompts_running
+[2026-08-18T20:15:37.242395+00:00] -> waiting_gpu
+[2026-08-18T20:15:42.250579+00:00] -> prompts_running
+[2026-08-18T20:17:42.489280+00:00] -> waiting_gpu
+[2026-08-18T20:17:47.497670+00:00] -> prompts_running
+[2026-08-18T20:19:46.725922+00:00] -> waiting_gpu
+[2026-08-18T20:19:51.737742+00:00] -> prompts_running
+[2026-08-18T20:24:08.296835+00:00] -> prompts_draft
+[2026-08-18T20:24:08.313437+00:00] prompt gate open (65 plates)
+[2026-08-18T20:24:08.313501+00:00] --at-gate prompts_draft: running hook
+endpoint          tw7wlntgpdetsc
+workers warm now  2  {"idle": 1, "initializing": 0, "ready": 1, "running": 0, "throttled": 1, "unhealthy": 0}
+sending           4 concurrent 512x512 renders
+
+  worker 0  COMPLETED    wall    33.56s  pull+start    17.4s  boot 3.513  render 10.821  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 1  COMPLETED    wall    40.12s  pull+start    33.2s  boot 0  render 3.786  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 2  COMPLETED    wall    44.46s  pull+start    38.5s  boot 0  render 4.345  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 3  COMPLETED    wall    50.98s  pull+start    44.4s  boot 0  render 3.778  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+elapsed           50.98s
+workers warm      1  {"idle": 0, "initializing": 3, "ready": 0, "running": 1, "throttled": 0, "unhealthy": 0}
+distinct cards    1
+  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+NOTE: 1 of 4 requests reported a model load. The rest were served by an already-warm worker, so this warmed 1 distinct worker(s), not 4.
+
+WARNING: asked for 4 warm workers, health reports 1. Runpod's scaler may not have opened them all; the bake will queue rather than fan out, and its first renders on any cold worker will not be pixel-comparable to home.
+
+wrote /home/kb/Desktop/projects/scriptorium-flash/runs/pg-120-runpod/prewarm.json
+[2026-08-18T20:25:00.155995+00:00] hook exited 0 after 51.8s
+[2026-08-18T20:25:00.162101+00:00] cleared prompts_draft gate in 51.86s
+[2026-08-18T20:25:01.163633+00:00] -> approved
+[2026-08-18T20:25:03.168414+00:00] -> portraits_rendering
+[2026-08-18T20:26:40.621753+00:00] -> portraits_review
+[2026-08-18T20:26:40.623624+00:00] cleared portraits_review gate in 0.00s
+[2026-08-18T20:26:41.625765+00:00] -> rendering
+[2026-08-18T20:30:23.083687+00:00] -> rendered
+[2026-08-18T20:30:28.334619+00:00] -> published
+[2026-08-18T20:30:28.340144+00:00] published — wall 50.8 min, gate wait 52.1s

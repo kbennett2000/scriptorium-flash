@@ -118,13 +118,19 @@ console.log(`       progress moved ${first} -> ${last}`);
 // 6. nothing broke quietly
 ok("no 4xx/5xx responses", badStatus.length === 0,
    badStatus.slice(0, 5).join(" | "));
-ok("no console errors or failed requests",
-   problems.filter((p) => p.startsWith("console") || p.startsWith("request")).length === 0);
+const expected = (p) =>
+  p.startsWith("console error: Failed to load resource") || /edits/.test(p);
+const noisy = problems.filter(
+  (p) => (p.startsWith("console") || p.startsWith("request")) && !expected(p));
+ok("no console errors or failed requests", noisy.length === 0);
+if (problems.length) {
+  console.log("\n  observed (including expected ones):");
+  for (const p of problems.slice(0, 12)) console.log(`    ${expected(p) ? "expected" : "PROBLEM "}  ${p}`);
+}
 
 await browser.close();
 
-const hard = problems.filter(
-  (p) => !p.startsWith("console error: Failed to load resource") && !/edits/.test(p));
+const hard = problems.filter((p) => !expected(p));
 console.log(`\nscreenshots in ${shotDir}`);
 if (hard.length) {
   console.log(`\nFAILED (${hard.length}):`);
