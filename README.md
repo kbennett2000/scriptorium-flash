@@ -3,8 +3,8 @@
 Moving the AI steps of a working app onto Runpod, and writing down what it
 actually cost and how long it actually took.
 
-**Status: finished.** Five cycles, every number measured rather than estimated,
-total Runpod spend **$0.7294523746**.
+**Status: finished.** Six cycles, every number measured rather than estimated,
+total Runpod spend **$0.7356815413**.
 
 ## What this is
 
@@ -52,9 +52,9 @@ render workers takes this architecture below that. That ceiling is the most
 useful thing the project found.
 
 **It is very cheap, and idle is free.** A warm plate costs **$0.001742** on a
-pinned RTX 4090. The whole project — five cycles, two full books, two GPU tiers,
+pinned RTX 4090. The whole project — six cycles, two full books, two GPU tiers,
 a container built and pushed, 26 hosted text-model calls — cost
-**$0.7294523746**, reconciled against the account balance to ten decimal places.
+**$0.7356815413**, reconciled against the account balance to ten decimal places.
 An endpoint with no traffic billed **$0.00**, measured four separate times.
 
 **The renders are the same computation, not a similar one.** The container runs

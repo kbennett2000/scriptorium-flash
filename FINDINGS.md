@@ -31,8 +31,9 @@ Rules for entries:
 | 2026-08-18 | Cycle 4, gate A — pinned 4090 endpoint, cold start + comparison render set + idle tail | **$0.0254124222** | `clientBalance` $49.8225049441 → $49.7970925219, settled over ten identical reads |
 | 2026-08-18 | Cycle 4, gate B — pre-warm 4 workers + full `pg-41` bake (18 renders) + warm-worker demo + idle tail | **$0.1037042686** | `clientBalance` $49.7970925219 → $49.6933882533, settled after teardown; `runs/pg-41-runpod/balance-settle.log` |
 | 2026-08-18 | Cycle 5, showcase bake — full `pg-120` bake (91 renders: 65 plates, 25 portraits, 1 cover) + pre-warm + 3 cold-load regens + warm-worker demo + idle tail | **$0.4282544446** | `clientBalance` $49.6933882533 → $49.2651338087, settled over six identical reads 45 s apart; `runs/pg-120-runpod/balance-settle.log` |
+| 2026-08-18 | Cycle 6, stranger test — `hello-flash` deployed from a fresh clone, 5 requests, endpoint deleted after ~4 min | **$0.0062291667** | `clientBalance` $49.2651338087 → $49.2589046420, settled over six identical reads; `runs/hello-flash-stranger/balance-settle.log` |
 
-**Total Runpod spend to date: $0.7294523746**
+**Total Runpod spend to date: $0.7356815413**
 
 Cycle 3: **$0.1720812392**, against a $0.20 estimate in the brief and a $0.45
 ceiling. Cycle 4: **$0.1291166908**, against a $0.20 plan and a **$0.30 ceiling**
@@ -49,8 +50,13 @@ opened, the bake ran 1.88 wide instead of 1.25, and four workers alive with
 same configuration, decided by Runpod's scaler rather than by us. Closing balance
 **$49.2651338087**.
 
+Cycle 6: **$0.0062291667**, against a $0.30 ceiling and a $0.21 plan — the
+submission cycle, whose only paid step so far is a `hello-flash` deploy from a
+fresh clone to prove the written instructions work. Closing balance
+**$49.2589046420**.
+
 The total reconciles two ways to ten decimal places: the ledger rows sum to
-$0.7294523746, and the account has moved $49.9945861833 → $49.2651338087, which
+$0.7356815413, and the account has moved $49.9945861833 → $49.2589046420, which
 is the same number.
 
 Cycle 2 spent nothing: all three billing categories returned `[]` over an
@@ -114,6 +120,126 @@ produced, and none belongs in this log: they are provenance for files the repo
 deliberately does not ship, and the thing that verifies them is
 `fetch_models.py`, which fails the build on a mismatch. So `MODELS.md` is
 excluded from the `check_numbers.py` sweep by design rather than by oversight.
+
+---
+
+## 2026-08-18 — Cycle 6
+
+### `flash app delete` reported success and left the endpoint running
+
+The submission's "stranger test" — clone the repo into a clean directory and
+follow only the written docs — deployed `hello-flash` a second time and then tore
+it down the way this repo's own documentation said to. It did not tear down.
+
+```
+$ flash app delete hello-flash
+✓ deleted app hello-flash
+
+$ runpodctl serverless list
+[ { "id": "jayf2t4qi40v9r", "name": "hello-flash", "workersMax": 1,
+    "idleTimeout": 60, "flashboot": true, ... } ]
+```
+
+The **app record** was deleted. The **serverless endpoint** behind it was not,
+and a scale-to-zero endpoint that nobody knows about is a bill waiting for a
+request. `runpodctl serverless delete jayf2t4qi40v9r` returned
+`{"deleted": true}` and the list then returned `[]`.
+
+**This is the same class of defect as three others this project has recorded**,
+and the pattern is now unmistakable: `flash deploy` reports "deployed to
+production" for a client-mode endpoint it never provisions; a provision run
+against a stale `.flash/resources.pkl` prints a plausible endpoint id and creates
+nothing; `render_bench.settled_balance()` called a moving balance settled. In
+every case a success message described an intention rather than an outcome.
+
+The rule this project already applied to money now applies to teardown:
+**verify by asking, never by a success message.** Both `hello-flash/README.md`
+and `GETTING-STARTED.md` now tell a reader to run `runpodctl serverless list`
+after deleting, and what to do when it is not empty.
+
+### The settle loop earned itself a second time: the charge posted on read five
+
+**Cost: $0.0062291667**, settled. Opening $49.2651338087, closing
+**$49.2589046420**. `runs/hello-flash-stranger/balance-settle.log`:
+
+```
+22:36:23Z  49.2651338087     <- endpoint already deleted
+22:37:08Z  49.2651338087
+22:37:54Z  49.2651338087
+22:38:39Z  49.2651338087
+22:39:25Z  49.2651338087
+22:40:10Z  49.2589046420     <- the charge posts, four minutes after teardown
+...
+settled: 6 identical reads over 225 s -> 49.2589046420
+```
+
+**Five consecutive identical reads spanning three minutes, and the charge had
+not posted yet.** The endpoint was already deleted before the first read. Any
+test for a *stable* balance — including `render_bench.settled_balance()`, which
+accepts two equal reads 30 s apart, and which is why two committed
+`summary.json` files carry wrong `cost_usd` values — would have declared this
+settled at the opening figure and recorded the cost of this task as **$0.00**.
+
+This is the second time the six-read rule has caught a late posting; Cycle 5's
+was a further $0.0067340000 arriving after five identical reads. Twice is a
+pattern, and the pattern is that **Runpod's balance can sit perfectly still in
+the middle of the lag**. A demonstrably-nonzero charge reading as zero is the
+worst possible failure for a project whose whole claim is that it measured what
+things cost.
+
+### A second cold start on the same trivial app: 50.624 s against 31.387 s
+
+Same app, same `GpuGroup.AMPERE_16`, same `workers=(0, 1)`, same 0.2 MB
+artifact, deployed a day later as endpoint `jayf2t4qi40v9r`. Four calls through
+`tools/runpod_http.py`, which times each one:
+
+| Call | Wall | Worker |
+|---|---:|---|
+| 1 — cold | **50.624 s** | `c3f77aa3932f` |
+| 2 | 0.492 s | `c3f77aa3932f` |
+| 3 | 0.284 s | `c3f77aa3932f` |
+| 4 | 0.295 s | `c3f77aa3932f` |
+
+Warm median **0.295 s** over the three, against Cycle 3's **0.354 s** — the same
+number to the tenth of a second, which is the reassuring half.
+
+The cold start is not. **50.624 s against Cycle 3's 31.387 s is 1.6× on an
+identical configuration**, and there is no image pull to explain it: this app
+ships 0.2 MB and installs nothing. Two samples is not a distribution, and neither
+figure should be quoted as *the* cold start for a scale-to-zero endpoint. What
+can be said is that the spread on a trivial app is wide enough that a demo must
+not depend on it — which is what the pre-warm procedure already assumes for the
+render endpoint, for a different reason.
+
+The identical `worker` hostname across all four calls is what makes calls 2–4
+warm by measurement rather than by assumption.
+
+### Two documentation defects the stranger test found, both fatal to a first run
+
+**`/main/predict` returns 404.** `hello-flash/README.md` had documented the
+request path as `<endpoint>/main/predict` since Cycle 2. The route is `/predict`.
+Checked against the live endpoint: `/predict` returns 200 and `/main/predict`
+returns `404 {"detail":"Not Found"}`. `flash deploy` prints the true routes when
+it finishes, and nothing had ever compared them to the doc.
+
+**`flash deploy --app hello-flash` fails from the repository root.**
+
+```
+Failed to load:
+  flash-imagegen/app.py: KeyError: 'RUNPOD_REGISTRY_AUTH_ID'
+  tools/replay_prompts.py: ModuleNotFoundError: No module named 'jsonschema'
+```
+
+`--app` selects which app to deploy but not which files to import: the CLI walks
+every `.py` beneath the working directory and one that raises on import aborts
+the deploy. Neither of those files has anything to do with `hello-flash`.
+`app.py` raises deliberately — a missing registry credential should fail loudly
+rather than silently pull nothing — and that deliberate failure now blocks an
+unrelated app's deploy. Deploying from inside `hello-flash/` scopes the walk and
+works.
+
+Both defects were invisible from inside the project, because nobody here had run
+either command from a clean checkout since Cycle 3.
 
 ---
 

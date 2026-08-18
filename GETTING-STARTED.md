@@ -115,25 +115,42 @@ The smallest Flash app that deploys and answers one request. It echoes its input
 the point is three numbers, not the computation.
 
 ```bash
-cd scriptorium-flash
-flash deploy --app hello-flash
+cd scriptorium-flash/hello-flash
+flash deploy
 ```
 
-**`flash deploy` prints the endpoint's base URL when it finishes.** That is where
-`<base-url>` comes from below. If the terminal has scrolled, read it back with
-`flash app get hello-flash`, or `flash env get production --app hello-flash` for
-the environment detail — note that `env get` takes the environment name as a
-positional argument, not a flag. `runpodctl serverless list` shows the endpoint
-id it was built from.
+**Deploy from inside `hello-flash/`, not from the repository root.**
+`flash deploy --app hello-flash` from the root fails before deploying anything:
+
+```
+Failed to load:
+  flash-imagegen/app.py: KeyError: 'RUNPOD_REGISTRY_AUTH_ID'
+  tools/replay_prompts.py: ModuleNotFoundError: No module named 'jsonschema'
+```
+
+`--app` chooses which app to deploy but not which files to import — the CLI walks
+every `.py` under the working directory first, and one that raises on import
+stops the whole deploy. Neither file has anything to do with this app.
+
+**`flash deploy` prints the endpoint's base URL and its routes when it
+finishes.** Read them off that output; that is where `<base-url>` comes from
+below. If the terminal has scrolled, `flash app get hello-flash` reads it back
+and `runpodctl serverless list` shows the endpoint id.
 
 ```bash
-curl -s "<base-url>/main/predict" -H 'content-type: application/json' \
-     -d '{"data": {"hello": "runpod"}}'
+python3 ../tools/runpod_http.py "<base-url>/predict" \
+    --data '{"data": {"hello": "runpod"}}' --repeat 4
 ```
 
-Send it twice. The reply carries `worker` — the hostname of the machine that ran
-it — and the same hostname on the second call is how you know the second request
-was warm rather than a second cold start.
+Use that rather than `curl`: it reads `~/.runpod/config.toml` in-process, so your
+key never reaches a shell variable, and it times every call. Note the path is
+**`/predict`** — `flash` also prints a ready-made `curl` line that puts
+`$RUNPOD_API_KEY` in your shell history, which is the thing this repo exists to
+avoid doing.
+
+Four calls in a row show you the shape: one cold, then warm. The reply carries
+`worker` — the hostname that served it — and the same hostname on later calls is
+how you know they were warm rather than fresh cold starts.
 
 What I measured, so you know what to expect:
 
@@ -143,12 +160,23 @@ What I measured, so you know what to expect:
 | Warm request | **0.354 s** |
 | Whole exercise: 4 requests, 458 s of endpoint life | **$0.0066245833** |
 
-Then tear it down **by name**:
+Then tear it down — and **check that it worked**, because one command is not
+enough:
 
 ```bash
 flash app delete hello-flash
-runpodctl serverless list          # confirm. Never trust a delete's exit code.
+runpodctl serverless list                   # ALWAYS. Do not skip this.
+runpodctl serverless delete <endpoint-id>   # if the list is not empty
+runpodctl serverless list                   # confirm it is now []
 ```
+
+**`flash app delete` printed `✓ deleted app hello-flash` and left the endpoint
+running.** Measured here on 2026-08-18: the app record went, the serverless
+endpoint behind it stayed, and it was still billable until
+`runpodctl serverless delete` removed it.
+
+Verify by asking, never by a success message. A checkmark is a claim about what a
+command tried to do.
 
 **Never run `flash undeploy --all`.** It is account-wide and will remove
 endpoints this project did not create.

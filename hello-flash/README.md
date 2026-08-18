@@ -30,8 +30,22 @@ demonstrably happened.
 ```bash
 uv tool install --python 3.13 runpod-flash   # 1.19.0 requires Python <3.14
 flash login                                  # once; see the note below
-flash deploy --app hello-flash
+cd hello-flash && flash deploy               # from INSIDE this directory
 ```
+
+**`cd` into this directory first.** Running `flash deploy --app hello-flash` from
+the repository root fails before it deploys anything:
+
+```
+Failed to load:
+  flash-imagegen/app.py: KeyError: 'RUNPOD_REGISTRY_AUTH_ID'
+  tools/replay_prompts.py: ModuleNotFoundError: No module named 'jsonschema'
+```
+
+`--app` selects which app to deploy but not which files to import: the CLI walks
+every `.py` under the working directory first, and one that raises on import
+stops the deploy. Neither of those files has anything to do with this app.
+Deploying from inside `hello-flash/` scopes the walk and it works.
 
 **The authentication line used to read the API key out of
 `~/.runpod/config.toml` and export it into the environment.** That line is gone.
@@ -50,9 +64,25 @@ scrolled, `flash app get hello-flash` reads it back, and
 `runpodctl serverless list` shows the endpoint id:
 
 ```bash
-curl -s "<base-url>/main/predict" -H 'content-type: application/json' \
+curl -s "<base-url>/predict" -H 'content-type: application/json' \
+     -H "Authorization: Bearer <your-key>" \
      -d '{"data": {"hello": "runpod"}}'
 ```
+
+**The path is `/predict`, not `/main/predict`.** An earlier version of this file
+said `/main/predict`; it returns `404 {"detail":"Not Found"}`. `flash deploy`
+prints the real routes when it finishes — read them off its output rather than
+trusting this file.
+
+Better than the curl above, because it never puts your key in a shell:
+
+```bash
+python3 ../tools/runpod_http.py "<base-url>/predict" \
+    --data '{"data": {"hello": "runpod"}}' --repeat 4
+```
+
+That reads `~/.runpod/config.toml` in-process, times each call, and prints the
+status and body. Four calls show you the cold start and then the warm ones.
 
 The reply echoes your input back, plus `worker` — the hostname of the machine
 that ran it. Send it twice: the same `worker` on the second call is how you know
@@ -63,11 +93,33 @@ came back as the literal string `void`. That is recorded here because it was
 going to be the real render app's only record of which card ran a plate; that app
 reads the device name out of ComfyUI's `/system_stats` instead.
 
-Teardown, by name:
+## Teardown, and why one command is not enough
 
 ```bash
 flash app delete hello-flash
+runpodctl serverless list                 # ALWAYS. Do not skip this.
+runpodctl serverless delete <endpoint-id> # if the list is not empty
+runpodctl serverless list                 # confirm it is now []
 ```
+
+**`flash app delete` reported success and left the endpoint running.** Measured
+2026-08-18, on the second deployment of this app:
+
+```
+$ flash app delete hello-flash
+✓ deleted app hello-flash
+
+$ runpodctl serverless list
+[ { "id": "jayf2t4qi40v9r", "name": "hello-flash", "workersMax": 1, ... } ]
+```
+
+The app record was deleted. The serverless endpoint behind it was not, and it
+was still billable. `runpodctl serverless delete` removed it and the list then
+returned `[]`.
+
+So the rule this project already applies to balances applies to teardown too:
+**verify by asking, never by a success message.** A checkmark is a claim about
+what a command tried to do.
 
 Never `flash undeploy --all` — that is account-wide and would remove endpoints
 this project did not create.
