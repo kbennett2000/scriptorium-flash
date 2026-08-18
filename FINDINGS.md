@@ -117,6 +117,108 @@ Nine of nine. **The home-side numbers in this file are safe to cite.**
 Free: 16 prompt replays and 13 local renders, all on the home RTX 5070. No
 Runpod resource was touched.
 
+### Removing `PYTORCH_JIT=0` moved the pixels not at all, and the proof is bit-for-bit
+
+This is the measurement the Cycle 3 debt note was owed. The question was whether the
+release-candidate interpreter and the disabled TorchScript were changing the output.
+
+**The answer is no, exactly and measurably no.** The Cycle 4 container — real Python
+3.11.15, TorchScript on — was sent four requests byte-identical to ones the Cycle 3
+container answered on the same pinned card. All four returned **the same number of
+differing pixels to the pixel**:
+
+| Plate | Conditioning sent | Cycle 3 container (3.11.0rc1, JIT off) | Cycle 4 container (3.11.15, JIT on) |
+|---|---|---:|---:|
+| 0001 | none (no IP-Adapter) | 637,911 | **637,911** |
+| 0003 | service default | 633,047 | **633,047** |
+| 0008 | omitted | 993,300 | **993,300** |
+| 0013 | omitted | 989,906 | **989,906** |
+
+Four for four, to the last pixel, across the LoRA-only path and the IP-Adapter path.
+Cycle 3 *inferred* that `PYTORCH_JIT=0` was not the cause of divergence, from the
+fact that plate 0001 uses no IP-Adapter and diverged anyway. This measures it
+directly: swap the interpreter, turn TorchScript back on, and not one pixel moves.
+
+So the honest accounting of the rebuild is that it bought **correctness, not
+fidelity**. The container no longer runs a 2022 release candidate and no longer
+disables a feature home has on — which is worth having, and was the stated reason —
+but nobody should expect it to have changed an image, and it did not.
+
+### The conditioning gap is confirmed on Runpod hardware, and it splits the divergence
+
+The same pass ran plates 0008 and 0013 **both ways** on the same worker, minutes
+apart: once omitting the conditioning (reproducing Cycle 3's request) and once
+sending the 0.35 / 0.4 that home actually sent.
+
+| Plate | Figures | Omitted (Cycle 3's request) | Sent (home's request) | Attributable to conditioning |
+|---|---:|---:|---:|---:|
+| 0008 | 2 | 993,300 (98.2%) | **721,810 (71.3%)** | **26.9 points** |
+| 0013 | 3 | 989,906 (97.8%) | **533,994 (52.8%)** | **45.0 points** |
+
+The corrected figures land inside the band the single-figure plates already occupy —
+0001 at 63.1% and 0003 at 62.6% — which is the silicon floor. Once the right
+conditioning is sent, a multi-figure plate is no worse than a single-figure one, and
+0013 is actually the *closest* plate to home in the whole set.
+
+The worker echoes what it built the graph with, so this is checkable rather than
+assumed: `weight=0.5 start=0.3` on the omitted arm, `weight=0.35 start=0.4` on the
+sent arm.
+
+**The split, stated plainly.** Cycle 3's 97.7–98.2% figures for plates 0008, 0011 and
+0013 were the sum of two causes. Roughly 27 and 45 points of it were our own harness
+sending a computation home never ran; the remaining 52–71% is silicon, and matches
+what the untainted plates always showed. The correction recorded earlier this cycle
+was right, and this is the measurement behind it.
+
+### The single pin was honoured again, but `workersStandby` now tracks the *maximum*
+
+`gpu=GpuType.NVIDIA_GEFORCE_RTX_4090` read back as `gpuTypeIds: ["NVIDIA GeForce
+RTX 4090"]` and every one of the six requests ran on
+`cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync`. Two cycles, two passes, single
+pin honoured both times.
+
+But `workers=(0, 4)` deployed:
+
+```
+workersMin: 0    workersMax: 4    workersStandby: 4
+```
+
+**This is worse than what `runpod/flash#364` reports.** That issue was written from
+`workers=(0, 1)` producing `workersStandby: 1`, and reads as an off-by-one against
+`min`. It is not: **standby tracks `max`**. Asking for a fleet that scales to zero and
+peaks at four gets four workers held warm continuously. On this tier, four RTX 4090s
+billed as active workers would be **$4.40/hr**.
+
+They did not bill. `currentSpendPerHr` stayed `0` and the balance did not move while
+four standby workers existed, which is consistent with the two null measurements
+Cycle 3 recorded for one. But the exposure scales with `workersMax`, and a reader of
+#364 would not know that. **A follow-up comment on #364 is owed**, with this readback.
+
+Also recorded for the first time: the endpoint's **`templateId: 17i3os12gk`**. Cycle 3
+never captured one, because `PodTemplate(...)` creates it implicitly and nothing prints
+it back.
+
+### The rebuilt image is slower to pull and slower to render, and the pixels prove it is not the workload
+
+| | Cycle 3 image | Cycle 4 image |
+|---|---:|---:|
+| Cold start, wall | 431.73 s | **489.82 s** |
+| — of which image pull + worker start | 414.9 s | **478.2 s** |
+| — of which ComfyUI boot | 6.5 s | **2.51 s** |
+| Warm render median | 4.2175 s (n=6) | **5.289 s** (n=5) |
+| Warm range | 4.025–7.363 s | 4.344–5.797 s |
+
+The pull is 63 s longer against an image only 0.06 GB larger, and the warm renders are
+about a second slower each. Neither is explained by the change: the pixel table above
+proves the two containers compute *the same thing*, so this is the host, the physical
+card, or a neighbour on it — not the workload.
+
+That is worth stating because it is the second time this project has caught a
+serverless timing difference that has nothing to do with the code under test, and it
+sets a floor on how finely these numbers can be read. **A one-second difference in a
+five-second render is not a signal on this platform** unless it repeats across passes.
+ComfyUI booting in 2.51 s rather than 6.5 s points the same way.
+
 ### The billing API did show the charges, a day later, and it agrees with the balance to nine decimal places
 
 Cycle 3 recorded that `runpodctl billing serverless` returned `[]` for charges
