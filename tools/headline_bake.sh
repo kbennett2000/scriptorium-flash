@@ -6,14 +6,32 @@
 # steps 3-6; everything before and after is free.
 #
 #   ./headline_bake.sh <endpoint-id>
+#   OUT=runs/pg-41-rehearsal KEEP_ENDPOINT=1 ./headline_bake.sh <endpoint-id>
 #
 # Assumes: the endpoint is already provisioned and pinned (provision_client_endpoint.py),
 # the bakery is running on master with ADR-0038, and the pg-41 baseline is backed up.
+#
+# TWO ENV GUARDS, both added in Cycle 6 when this script was re-run for a stage
+# rehearsal and neither default was survivable:
+#
+#   OUT             Where the artifacts land. The default is the directory holding
+#                   the committed evidence for the 325.24 s headline -- run.json,
+#                   timing.json, prewarm.json, warm-demo.json. A second run with
+#                   the default overwrites all four and the provenance behind the
+#                   repo's headline number is simply gone. Override it for
+#                   anything that is not the original measurement.
+#
+#   KEEP_ENDPOINT   Set to 1 to skip step 6, the teardown. The default is to tear
+#                   down, because an endpoint left up by accident is the failure
+#                   mode that costs money. Set it deliberately when the endpoint
+#                   is wanted afterwards -- a rehearsal, or a live demo.
 
 set -euo pipefail
 ENDPOINT="${1:?usage: headline_bake.sh <endpoint-id>}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$REPO/runs/pg-41-runpod"
+OUT="${OUT:-$REPO/runs/pg-41-runpod}"
+case "$OUT" in /*) ;; *) OUT="$REPO/$OUT" ;; esac   # accept a repo-relative OUT
+KEEP_ENDPOINT="${KEEP_ENDPOINT:-0}"
 DROPIN=/home/kb/.config/systemd/user/scriptorium-bakery.service.d
 mkdir -p "$OUT"
 
@@ -67,9 +85,16 @@ say "5. single warm request  [PAID]"
     --out "$OUT/warm-demo.json"
 
 # --- 6. tear down by name, immediately --------------------------------------
-say "6. teardown"
-runpodctl serverless delete "$ENDPOINT" | tail -2
-runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+if [ "$KEEP_ENDPOINT" = "1" ]; then
+  say "6. teardown SKIPPED (KEEP_ENDPOINT=1)"
+  echo "  endpoint $ENDPOINT is still up and still billable while workers are warm."
+  echo "  Tear it down with:  runpodctl serverless delete $ENDPOINT"
+  runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+else
+  say "6. teardown"
+  runpodctl serverless delete "$ENDPOINT" | tail -2
+  runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+fi
 
 # --- 7. revert the bakery to the committed configuration (free) -------------
 say "7. bakery -> local backend"

@@ -22,6 +22,113 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-18 — A clean checkout found three CLI defects the project had grown blind to
+
+The submission pass cloned this repo into an empty directory and ran only what
+the documentation said to run. Everything below was invisible from inside the
+working tree, because the working tree has a credential file, a populated
+`.flash/` cache, and two years of muscle memory.
+
+### `flash app delete` reports success and leaves the endpoint running
+
+The one that matters, because it costs money.
+
+```
+$ flash app delete hello-flash
+✓ deleted app hello-flash
+
+$ runpodctl serverless list
+[ { "id": "jayf2t4qi40v9r", "name": "hello-flash", "workersMax": 1, ... } ]
+```
+
+The app record is deleted. The serverless endpoint is not. There is no warning,
+no partial-success message, and no non-zero exit — the checkmark is unqualified.
+`runpodctl serverless delete jayf2t4qi40v9r` then returned `{"deleted": true}`
+and the list returned `[]`.
+
+A user who trusts the checkmark is left with a scale-to-zero endpoint they
+believe is gone. It bills nothing at rest, which is precisely why it can sit
+there indefinitely without anyone noticing — until something sends it a request.
+
+**This is the fourth time on this project that a Runpod tool has reported an
+intention as an outcome**, and the list is worth reading together:
+
+| Reported | Actually |
+|---|---|
+| `✓ deleted app hello-flash` | endpoint still live |
+| `deployed to production` (client-mode) | manifest with `"resources": {}`, nothing provisioned |
+| a plausible `ENDPOINT_ID=…` after a stale-cache provision | `serverless list` returns `[]` |
+| `COMPLETED` on four pre-warm requests | one worker warm, three served by it |
+
+Four different commands, one shape. **The tooling's success messages describe
+what was attempted.** Every workflow in this repo now verifies by asking a
+second, independent question — `serverless list` after a delete, `model_load_s`
+after a pre-warm, six identical balance reads after a charge.
+
+*Draft issue, pending Kris's approval before filing on `runpod/flash`:*
+
+> **`flash app delete` deletes the app record but not its serverless endpoint**
+>
+> Deploy any Flash app, then `flash app delete <name>`. It prints
+> `✓ deleted app <name>` and exits 0. `runpodctl serverless list` still shows the
+> endpoint, with its workers and idle timeout intact; `runpodctl serverless
+> delete <id>` is needed to actually remove it.
+>
+> Expected: either the endpoint is deleted too, or the message says which
+> resources were and were not removed. As it stands a user can believe they have
+> torn down a billable resource when they have not.
+>
+> Version: Runpod Flash CLI v1.19.0.
+
+### `flash deploy --app <name>` imports every `.py` in the tree, then gives up
+
+```
+$ flash deploy --app hello-flash        # from the repository root
+Failed to load:
+  flash-imagegen/app.py: KeyError: 'RUNPOD_REGISTRY_AUTH_ID'
+  tools/replay_prompts.py: ModuleNotFoundError: No module named 'jsonschema'
+```
+
+`--app` chooses what to deploy but not what to import. The CLI walks every `.py`
+below the working directory first, and any one that raises on import aborts the
+deploy — including files belonging to a different app, and including files that
+raise *deliberately*. `flash-imagegen/app.py` reads a required environment
+variable with `os.environ[...]` precisely so a missing registry credential fails
+loudly instead of silently pulling nothing. That deliberate strictness now blocks
+an unrelated app.
+
+The workaround is to deploy from inside the app's own directory, which scopes the
+walk. Worth knowing before it costs someone an afternoon: the error names two
+files that have nothing to do with what they asked to deploy, so the natural
+first move is to start editing the wrong thing.
+
+### The CLI's own suggested request puts a long-lived key in your shell history
+
+`flash deploy` finishes by printing a ready-to-paste example:
+
+```
+curl -X POST https://<id>.api.runpod.ai/predict \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" \
+  -d '{"input": {}}'
+```
+
+This is the same pattern Cycle 1 flagged in Runpod's own agent skills and filed
+as [runpod/flash#363](https://github.com/runpod/flash/issues/363) — the tooling
+consistently steers users toward putting a plaintext credential in the
+environment and the shell history, while its own credential file sits right
+there. Noted rather than re-filed; it is the same underlying issue.
+
+### Credit where it is due
+
+The deploy itself is genuinely fast and the output is genuinely good. From inside
+`hello-flash/`, `flash deploy` built, uploaded and deployed in **6.8 s** total
+and printed the base URL, both routes and their methods, unprompted. That routes
+table is what caught a documentation error this repo had carried since Cycle 2 —
+the request path was documented as `/main/predict` and is `/predict`. The tool
+told the truth; nobody had read it against the doc.
+
+---
+
 ## 2026-08-18 — The MCP server is open source, so the probe lifted no rule and cost nothing
 
 Owed since Cycle 3: *which of Runpod's API surfaces does their own MCP server

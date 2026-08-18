@@ -5,9 +5,13 @@ Flash provisions and scales it rather than shipping a Python function body. That
 is forced by size -- `flash build` caps its artifact at 1500MB and the models are
 about 11GB -- and it is also what keeps the sampler identical to home.
 
-NOTHING HERE IS DEPLOYED YET. Deployment is gated on Kris's approval of a cost
-estimate, and separately blocked until `flash login` has been run once, because
-flash cannot read the credential file runpodctl wrote. See FINDINGS.md.
+This is the configuration that produced the project's headline numbers: 18 plates
+for the `pg-41` bake and 91 for the `pg-120` showcase book, every one of them on
+an RTX 4090, at $0.001742 per warm plate. See FINDINGS.md.
+
+Deploying it is not `flash deploy`. A client-mode endpoint provisions on first
+use, so `tools/provision_client_endpoint.py` calls that path directly and prints
+the id -- see its docstring for why the obvious command silently creates nothing.
 
 Two settings are load-bearing for cost and are commented where they are set:
 `workers=(0, ...)` and the deliberate absence of `volume=`.
