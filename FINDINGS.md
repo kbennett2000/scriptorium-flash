@@ -203,6 +203,11 @@ four standby workers existed, which is consistent with the two null measurements
 Cycle 3 recorded for one. But the exposure scales with `workersMax`, and a reader of
 #364 would not know that. **A follow-up comment on #364 is owed**, with this readback.
 
+*Cycle 5:* posted, with the readback, the endpoint id and a minimal reproduction —
+[runpod/flash#364 (comment)](https://github.com/runpod/flash/issues/364#issuecomment-5332749910),
+2026-08-18T19:03:09Z. The issue was still open with zero comments and no triage label
+at the time of posting.
+
 Also recorded for the first time: the endpoint's **`templateId: 17i3os12gk`**. Cycle 3
 never captured one, because `PodTemplate(...)` creates it implicitly and nothing prints
 it back.
