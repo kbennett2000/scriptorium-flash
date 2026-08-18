@@ -118,7 +118,22 @@ def main() -> int:
               f"(manifest says total_bytes_reader "
               f"{manifest.get('total_bytes_reader', 0) / 1e6:.2f} MB)")
 
-    # 6. the rewrites that let /api/library be both a file and a directory
+    # 6. the artset listing, per profile
+    # The reader asks for a user's picture sets on opening a book. The real
+    # server answers with the synthetic "default" set; mirroring that keeps the
+    # static copy behaving like the server rather than merely serving files.
+    #
+    # Its sibling, GET /artsets/{user}/{book}/edits/manifest, is deliberately NOT
+    # stubbed: the live bakery answers that 404 too ("no such set 'edits'") when
+    # nobody has made a private edit, so a 404 here is the faithful response and
+    # inventing an empty set would make the mirror *less* like the original.
+    users = json.loads((out / "api" / "users.json").read_text())
+    for user in users:
+        for book_id in args.book_id:
+            write(out / "api" / "artsets" / user["id"] / book_id / "index.json",
+                  get(f"/api/artsets/{user['id']}/{book_id}"))
+
+    # 7. the rewrites that let /api/library be both a file and a directory
     write(out / "vercel.json", json.dumps({
         "rewrites": [
             {"source": "/health", "destination": "/health.json"},
@@ -126,6 +141,8 @@ def main() -> int:
             {"source": "/api/library", "destination": "/api/library.json"},
             {"source": "/api/library/:id/manifest",
              "destination": "/api/library/:id/manifest.json"},
+            {"source": "/api/artsets/:user/:book",
+             "destination": "/api/artsets/:user/:book/index.json"},
         ],
         # No content-type overrides. Every rewrite lands on a real .json file so
         # Vercel infers it, and a blanket rule on /api/(.*) would have mislabelled
