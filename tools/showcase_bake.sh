@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The Cycle 5 showcase bake: a full-length book end to end, plates on Runpod.
 #
-# Same shape as headline_bake.sh, with two changes that only a long book forces.
+# Same shape as headline_bake.sh, with three changes a long book forces and one
+# ordering fix that applies to any book.
 #
 # 1. THE PRE-WARM MOVED. headline_bake.sh pre-warms before the bake starts, which
 #    is fine for Sleepy Hollow: its text steps take 161 s, so four warm workers
@@ -20,6 +21,10 @@
 #    headline_bake.sh never overrode them -- which is why the published pg-41
 #    bundle says "The Fall of the House of Usher" over Sleepy Hollow's text to
 #    this day. A showcase artifact cannot carry the wrong book on its cover.
+#
+# 4. COLD-LOAD REMEDIATION HAPPENS BEFORE TEARDOWN. The first draft of this
+#    script ran the cold-load check last, after the endpoint had already been
+#    deleted -- so it could name the bad images and never fix them.
 #
 #   ./showcase_bake.sh <endpoint-id>
 #
@@ -81,29 +86,36 @@ BAKE_T0=$(date -u +%s)
 BAKE_T1=$(date -u +%s)
 echo "  bake wall clock: $((BAKE_T1 - BAKE_T0)) s"
 
-# --- 4. the live-demo measurement -------------------------------------------
-say "4. single warm request  [PAID]"
+# --- 4. replace any cold-load image, WHILE THE ENDPOINT IS STILL UP ---------
+# This has to come before teardown, which is not where the first draft of this
+# script put it: it ran cold_load_plates.py at the end, after step 6 had already
+# deleted the endpoint, so it could report the problem and never fix it.
+say "4. remediate cold-load images  [PAID]"
+"$REPO/tools/remediate_cold_plates.py" --book-id "$BOOK_ID" --endpoint "$ENDPOINT"
+
+# --- 5. the live-demo measurement -------------------------------------------
+say "5. single warm request  [PAID]"
 "$REPO/tools/prewarm.py" --endpoint "$ENDPOINT" --workers 1 --size 832 \
     --out "$OUT/warm-demo.json"
 
-# --- 5. tear down by name, immediately --------------------------------------
-say "5. teardown"
+# --- 6. tear down by name, immediately --------------------------------------
+say "6. teardown"
 runpodctl serverless delete "$ENDPOINT" | tail -2
 runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
 
-# --- 6. revert the bakery to the committed configuration (free) -------------
-say "6. bakery -> local backend"
+# --- 7. revert the bakery to the committed configuration (free) -------------
+say "7. bakery -> local backend"
 rm -f "$DROPIN/runpod.conf"; rmdir "$DROPIN" 2>/dev/null || true
 systemctl --user daemon-reload
 systemctl --user restart scriptorium-bakery
 sleep 6
 
-# --- 7. attribute the time, and find any cold-load plates (free) ------------
-say "7. timing"
+# --- 8. attribute the time (free) -------------------------------------------
+say "8. timing"
 "$REPO/tools/bake_timing.py" --book-id "$BOOK_ID" --run-log "$OUT/run.json" \
     --out "$OUT/timing.json" --markdown || true
 
-say "8. cold-load plates"
+say "9. cold-load check (should now report none)"
 "$REPO/tools/cold_load_plates.py" --book-id "$BOOK_ID" || true
 
 say "done -- balance still needs to settle before any cost is recorded"
