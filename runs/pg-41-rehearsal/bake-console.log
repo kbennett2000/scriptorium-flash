@@ -1,0 +1,104 @@
+
+[1m=== 1. bakery -> runpod backend ===[0m  23:05:07Z
+  SubState=running
+  RENDER_BACKEND=runpod
+  RUNPOD_ENDPOINT_ID=cire2u3mv4cr3m
+  RENDER_CONCURRENCY=4
+  RENDER_CARD=NVIDIA GeForce RTX 4090
+
+[1m=== 2. clear pg-41 (baseline is backed up at ~/scriptorium-baseline-pg41-20260818) ===[0m  23:05:13Z
+{"deleted":"pg-41","removed":["library/pg-41","work/pg-41","jobs/pg-41.json","sync/positions/kris/pg-41.json"]}
+
+[1m=== 3. pre-warm 4 workers  [PAID] ===[0m  23:05:13Z
+endpoint          cire2u3mv4cr3m
+workers warm now  8  {"idle": 4, "initializing": 0, "ready": 4, "running": 0, "throttled": 0, "unhealthy": 0}
+sending           4 concurrent 512x512 renders
+
+  worker 0  COMPLETED    wall   163.10s  pull+start   156.3s  boot 1.503  render 3.709  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 1  COMPLETED    wall   169.86s  pull+start   166.0s  boot 0  render 1.507  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 2  FAILED       wall   302.41s  pull+start     0.8s  boot None  render None  -
+  worker 3  COMPLETED    wall   167.42s  pull+start   163.0s  boot 0  render 1.508  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+elapsed           302.41s
+workers warm      7  {"idle": 3, "initializing": 0, "ready": 3, "running": 1, "throttled": 0, "unhealthy": 0}
+distinct cards    1
+  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+NOTE: 1 of 4 requests reported a model load. The rest were served by an already-warm worker, so this warmed 1 distinct worker(s), not 4.
+
+wrote /home/kb/Desktop/projects/scriptorium-flash/runs/pg-41-rehearsal/prewarm.json
+
+[1m=== 4. bake pg-41 end to end  [PAID] ===[0m  23:10:16Z
+[2026-08-18T23:10:16.803358+00:00] creating book (ingest runs inline, this blocks)
+[2026-08-18T23:10:17.561010+00:00] book_id=pg-41 state=ingested warnings=[]
+[2026-08-18T23:10:17.562584+00:00] started
+[2026-08-18T23:10:17.563656+00:00] -> ingested
+[2026-08-18T23:17:21.521038+00:00] -> mentions_running
+[2026-08-18T23:18:32.635919+00:00] -> mentions_done
+[2026-08-18T23:18:37.643316+00:00] -> cast_running
+[2026-08-18T23:18:59.677828+00:00] -> cast_done
+[2026-08-18T23:18:59.681096+00:00] cleared cast_done gate in 0.00s
+[2026-08-18T23:19:00.682668+00:00] -> cast_approved
+[2026-08-18T23:19:04.688080+00:00] -> ledger_running
+[2026-08-18T23:20:14.802559+00:00] -> ledger_done
+[2026-08-18T23:20:19.809274+00:00] -> selected
+[2026-08-18T23:20:24.816201+00:00] -> prompts_running
+[2026-08-18T23:20:59.887131+00:00] -> prompts_draft
+[2026-08-18T23:20:59.890640+00:00] prompt gate open (11 plates)
+[2026-08-18T23:20:59.892858+00:00] cleared prompts_draft gate in 0.01s
+[2026-08-18T23:21:00.894304+00:00] -> approved
+[2026-08-18T23:21:04.900278+00:00] -> portraits_rendering
+[2026-08-18T23:21:38.297103+00:00] -> portraits_review
+[2026-08-18T23:21:38.298768+00:00] cleared portraits_review gate in 0.00s
+[2026-08-18T23:21:39.300295+00:00] -> rendering
+[2026-08-18T23:22:36.551894+00:00] -> rendered
+[2026-08-18T23:22:41.709546+00:00] -> published
+[2026-08-18T23:22:41.709812+00:00] published — wall 12.4 min, gate wait 0.0s
+  bake wall clock: 745 s   (home baseline: 388.63 s)
+
+[1m=== 5. single warm request  [PAID] ===[0m  23:22:41Z
+endpoint          cire2u3mv4cr3m
+workers warm now  4  {"idle": 0, "initializing": 0, "ready": 0, "running": 4, "throttled": 0, "unhealthy": 0}
+sending           1 concurrent 832x832 renders
+
+  worker 0  COMPLETED    wall     5.17s  pull+start     0.0s  boot 0  render 2.813  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+elapsed           5.18s
+workers warm      4  {"idle": 0, "initializing": 0, "ready": 0, "running": 4, "throttled": 0, "unhealthy": 0}
+distinct cards    1
+  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+NOTE: 0 of 1 requests reported a model load. The rest were served by an already-warm worker, so this warmed 0 distinct worker(s), not 1.
+
+wrote /home/kb/Desktop/projects/scriptorium-flash/runs/pg-41-rehearsal/warm-demo.json
+
+[1m=== 6. teardown SKIPPED (KEEP_ENDPOINT=1) ===[0m  23:22:47Z
+  endpoint cire2u3mv4cr3m is still up and still billable while workers are warm.
+  Tear it down with:  runpodctl serverless delete cire2u3mv4cr3m
+  endpoints live: 1
+
+[1m=== 7. bakery -> local backend ===[0m  23:22:48Z
+  SubState=running
+
+[1m=== 8. timing ===[0m  23:22:54Z
+## Bake timing — pg-41
+
+Wall clock 12m 25s · gate wait 0m 00s · machine time 12m 25s
+
+| Bucket | Time | Share |
+|---|---:|---:|
+| Orchestration | 8m 22s | 67.3% |
+| Text steps | 2m 50s | 22.9% |
+| Image rendering | 1m 00s | 8.1% |
+| Model loading | 0m 13s | 1.7% |
+| **Total** | **12m 25s** | **100%** |
+
+Model loading: image model 6.0s, text model 6.5s (1 cold requests).
+
+- Warm render median: 5.28s (n=18)
+
+Integrity: 18/38 renders attributed · 57 text calls · residual 67.3% · counts match artifacts
+
+> ⚠️ 20 ComfyUI renders in the window belong to nothing in this bake.
+
+[1m=== done -- balance still needs to settle before any cost is recorded ===[0m  23:22:55Z

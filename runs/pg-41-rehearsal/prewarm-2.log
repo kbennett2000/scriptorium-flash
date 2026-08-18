@@ -1,0 +1,19 @@
+endpoint          cire2u3mv4cr3m
+workers warm now  7  {"idle": 3, "initializing": 0, "ready": 3, "running": 1, "throttled": 0, "unhealthy": 0}
+sending           4 concurrent 512x512 renders
+
+  worker 0  COMPLETED    wall    13.53s  pull+start     7.0s  boot 1.504  render 3.766  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 1  COMPLETED    wall    17.80s  pull+start    13.7s  boot 0  render 1.507  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 2  COMPLETED    wall    19.97s  pull+start    16.7s  boot 0  render 1.507  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 3  COMPLETED    wall    24.47s  pull+start    19.7s  boot 0  render 1.508  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+elapsed           24.47s
+workers warm      1  {"idle": 0, "initializing": 0, "ready": 0, "running": 1, "throttled": 3, "unhealthy": 0}
+distinct cards    1
+  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+NOTE: 1 of 4 requests reported a model load. The rest were served by an already-warm worker, so this warmed 1 distinct worker(s), not 4.
+
+WARNING: asked for 4 warm workers, health reports 1. Runpod's scaler may not have opened them all; the bake will queue rather than fan out, and its first renders on any cold worker will not be pixel-comparable to home.
+
+wrote runs/pg-41-rehearsal/prewarm-2.json

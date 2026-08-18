@@ -63,10 +63,11 @@ Read these fields instead, from `prewarm.py`'s per-worker lines:
 | `render` at 512 px | 4.821 s | **~1.51 s** |
 | `render` at 832 px | 10.511 s | **3.897 s** |
 
-A whole pre-warm pass took **494.714 s** the first time an image had to be pulled
-and **50.984 s** the second time, when a worker already had it from provisioning.
-A cold start is only cold once per worker, so do not quote one of those as "the"
-pre-warm time. Budget the larger one.
+**There is no such thing as "the" pre-warm time.** Five measured passes:
+**494.714 s**, **302.41 s**, **121.88 s**, **50.984 s**, **24.47 s** — a factor
+of twenty, on the same script and the same worker count. It depends entirely on
+whether a worker already holds the image. Budget the worst case and be pleased
+when it is the best.
 
 And read the two lines `prewarm.py` prints when it is not satisfied:
 
@@ -184,11 +185,12 @@ Every one of these was observed by this project, not imagined.
 
 | Failure | How you know | Do this |
 |---|---|---|
-| **Throttled workers** | `/health` shows `throttled: 2` — Runpod has no free RTX 4090 to give you | Wait. It cleared in five seconds once. **Do not re-provision** — you will pay a fresh cold start and still be queued. If it persists, the fleet is availability-bound, not configuration-bound: go narrow, say so out loud, and drop to the warm single render. |
+| **Throttled workers** | `/health` shows `throttled: 3` — Runpod has no free RTX 4090 to give you | **Wait, and poll `/health` — it is free.** Observed clearing twice: after about five seconds once, and after about 40 s in the Cycle 6 rehearsal, reaching a full `idle: 4, ready: 4` about 80 s in. **Do not re-provision** — you will pay a fresh cold start and still be queued. If it has not cleared in a couple of minutes the fleet is availability-bound rather than configuration-bound: go narrow, say so out loud, and drop to the warm single render. |
+| **A request comes back `FAILED`** | `prewarm.py` prints `FAILED` with `boot None  render None` and a small `pull+start` | Re-send it. A `pull+start` under a second means it reached a live worker and failed there, so the fleet is healthy and one job is not — `/health` will show `"failed": 1` and the other workers still `idle`/`ready`. Do not re-provision and do not re-warm the whole fleet. Seen once, in the Cycle 6 rehearsal, where it also held the pass open for five minutes: if you are short of time, kill it rather than waiting. |
 | **Narrow scaler** | `NOTE: 1 of 4 requests reported a model load`, or `WARNING: asked for 4 warm workers, health reports 1` | Nothing to do — the caller does not control it. Re-run the pre-warm, expect the bake to queue rather than fan out, and quote per-render numbers (4.3080 s, n=91) instead of wall clock. |
 | **Cold-load plate** | a render reports `model_load_s` above zero mid-bake | `python3 tools/cold_load_plates.py --book-id <BOOK>` to name them, then `python3 tools/remediate_cold_plates.py --book-id <BOOK> --endpoint <ENDPOINT-ID>` to replace them. **Before teardown** — the endpoint has to be alive to re-render. It re-warms first, because a regen against a spun-down worker just swaps one cold image for another. |
 | **Gone-cold standby** | `pull+start` in the hundreds of seconds on a worker you thought was warm | Re-run the pre-warm and budget **~490 s**, of which 478.2 s is image pull. This is exactly what T-15 exists to prevent. If you are inside eight minutes of speaking, skip to the book. |
-| **Endpoint missing** | `runpodctl serverless list` returns `[]` | `find . -path '*/.flash/resources.pkl' -delete`, then `RUNPOD_REGISTRY_AUTH_ID=<id> python3 tools/provision_client_endpoint.py --app-dir flash-imagegen`, **then `runpodctl serverless list` again**. A provision run against a stale cache prints a plausible endpoint id and creates nothing, with no error at all — a genuine provision takes about 3 s, a cache-satisfied no-op about 0.4 s. Then a full cold start: about eight minutes. Inside eight minutes of speaking, go straight to the book. |
+| **Endpoint missing** | `runpodctl serverless list` returns `[]` | Three things, in order, from the repository root. `find . -path '*/.flash/resources.pkl' -delete` — the cache is written relative to the working directory, not `--app-dir`, and a stale one makes the provision print a plausible id and create nothing with no error. Then `RUNPOD_REGISTRY_AUTH_ID=<id> ~/.local/share/uv/tools/runpod-flash/bin/python tools/provision_client_endpoint.py --app-dir flash-imagegen` — **that interpreter, not `python3`**, because `runpod_flash` lives in the Flash CLI's own uv environment. Then **`runpodctl serverless list` again, which is the only test that works**: the provision prints an id either way, and elapsed time does not distinguish them — a genuine provision has been measured at both 3.29 s and 0.62 s. Then a full cold start: about eight minutes. Inside eight minutes of speaking, go straight to the book. |
 
 ---
 

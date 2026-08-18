@@ -32,8 +32,9 @@ Rules for entries:
 | 2026-08-18 | Cycle 4, gate B — pre-warm 4 workers + full `pg-41` bake (18 renders) + warm-worker demo + idle tail | **$0.1037042686** | `clientBalance` $49.7970925219 → $49.6933882533, settled after teardown; `runs/pg-41-runpod/balance-settle.log` |
 | 2026-08-18 | Cycle 5, showcase bake — full `pg-120` bake (91 renders: 65 plates, 25 portraits, 1 cover) + pre-warm + 3 cold-load regens + warm-worker demo + idle tail | **$0.4282544446** | `clientBalance` $49.6933882533 → $49.2651338087, settled over six identical reads 45 s apart; `runs/pg-120-runpod/balance-settle.log` |
 | 2026-08-18 | Cycle 6, stranger test — `hello-flash` deployed from a fresh clone, 5 requests, endpoint deleted after ~4 min | **$0.0062291667** | `clientBalance` $49.2651338087 → $49.2589046420, settled over six identical reads; `runs/hello-flash-stranger/balance-settle.log` |
+| 2026-08-18 | Cycle 6, stage rehearsal — provision + 3 pre-warm passes + full `pg-41` bake (18 renders) + warm-worker demo, endpoint left standing | **$0.3963518425** | `clientBalance` $49.2589046420 → $48.8625527995, settled over six identical reads; `runs/pg-41-rehearsal/balance-settle.log` |
 
-**Total Runpod spend to date: $0.7356815413**
+**Total Runpod spend to date: $1.1320333838**
 
 Cycle 3: **$0.1720812392**, against a $0.20 estimate in the brief and a $0.45
 ceiling. Cycle 4: **$0.1291166908**, against a $0.20 plan and a **$0.30 ceiling**
@@ -50,13 +51,18 @@ opened, the bake ran 1.88 wide instead of 1.25, and four workers alive with
 same configuration, decided by Runpod's scaler rather than by us. Closing balance
 **$49.2651338087**.
 
-Cycle 6: **$0.0062291667**, against a $0.30 ceiling and a $0.21 plan — the
-submission cycle, whose only paid step so far is a `hello-flash` deploy from a
-fresh clone to prove the written instructions work. Closing balance
-**$49.2589046420**.
+Cycle 6: **$0.4025810092**, against a **$0.30 ceiling** — **over by
+$0.1025810092, and the cycle was halted there.** Two paid steps: a `hello-flash`
+deploy from a fresh clone to prove the written instructions work
+($0.0062291667, against a $0.04 estimate) and the stage rehearsal
+($0.3963518425, against a $0.17 estimate for its two gates). The rehearsal
+estimate was low by 2.3×, and the reason is legible: it priced one bake, and what
+ran was a bake plus three pre-warm passes against a fleet that opened to four
+workers and stayed open for twelve minutes rather than five. Closing balance
+**$48.8625527995**.
 
 The total reconciles two ways to ten decimal places: the ledger rows sum to
-$0.7356815413, and the account has moved $49.9945861833 → $49.2589046420, which
+$1.1320333838, and the account has moved $49.9945861833 → $48.8625527995, which
 is the same number.
 
 Cycle 2 spent nothing: all three billing categories returned `[]` over an
@@ -124,6 +130,179 @@ excluded from the `check_numbers.py` sweep by design rather than by oversight.
 ---
 
 ## 2026-08-18 — Cycle 6
+
+### HALTED: the rehearsal bake ran $0.10 over the cycle ceiling and its warm median missed a pre-registered band
+
+Two stop conditions fired on the same run and both are reported before anything
+else, because both are Kris's call rather than mine.
+
+**1. Spend.** Cycle 6 has spent **$0.4025810092** against a **$0.30 ceiling** —
+over by **$0.1025810092**. The rehearsal alone was **$0.3963518425** against a
+$0.17 estimate for both its gates, so the estimate was low by 2.3×. No further
+paid step was taken. The endpoint is left standing, which is what the plan called
+for and which `currentSpendPerHr: 0` confirms costs nothing at rest.
+
+Where the estimate went wrong: it priced a bake, and what ran was a bake plus
+three separate pre-warm passes (one deliberate proof pass, one inside the bake
+script) against a fleet that opened to four workers and stayed open. Four warm
+workers with 60-second idle tails, across a 12-minute bake instead of a 5-minute
+one, is the whole difference.
+
+**2. A card number.** `docs/NUMBERS.md` publishes a warm render median of
+**4.2790 s** (n=16) for `pg-41` and **4.3080 s** (n=91) for `pg-120`. This
+rehearsal, measured with the same instrument — the workers' own echoes, read by
+`cold_load_plates.py` over `library/` — returned **5.0260 s (n=15)**. The band
+registered in advance was 4.0–4.6 s. **The card has not been changed.**
+
+### The rehearsal's warm renders are bimodal, and the card is not slow
+
+The distribution is the interesting part, and it argues against "the 4090 got
+slower":
+
+```
+3.517  3.655  3.765  3.767  3.782  3.792 | 5.026  5.026  5.101  5.466
+5.551  6.548  8.872  12.637  13.862
+```
+
+**Six of the fifteen came in at 3.517–3.792 s — faster than any median this
+project has published**, including the 4.2790 s the card quotes. The other nine
+run from 5.026 s to 13.862 s. That is not a slower card; it is two populations.
+
+The single warm render taken immediately afterwards, one request against an idle
+warm worker, settles it: **`render_s` 2.813 s**, `delayTime` 13 ms,
+`model_load_s` 0, wall **5.175 s**. That is the fastest render this project has
+ever recorded, on the same endpoint, twenty seconds after the bake that produced
+a 5.0260 s median.
+
+**So the honest reading is that concurrency inflates per-render time**, and the
+card's medians describe a narrower fan-out than this run got. `overlap_factor`
+was **1.778** here, against 1.249 for the headline bake whose 4.2790 s the card
+publishes. The competing evidence is `pg-120`, which ran **1.881** wide and still
+returned 4.3080 s — so width alone does not explain it either, and this is not
+yet a finding, it is a discrepancy with a plausible mechanism and one
+contradicting data point. **It needs a controlled run to settle, which is not
+this cycle's work.**
+
+What can be said without more evidence: the per-image speedup the talk quotes is
+**1.59×** conservative and **1.78×** warm-to-warm, and both were measured on
+runs that fanned out narrowly. A demo that opens four workers may show worse
+per-render numbers than the card, and better wall-clock ones.
+
+### The rehearsal bake: 744.91 s, and its wall clock is not a comparison
+
+| Bucket | Headline bake | This rehearsal |
+|---|---:|---:|
+| Text steps | 161.36 s | 170.46 s |
+| Image rendering | 59.74 s | **60.38 s** |
+| Model loading | 23.22 s | 12.51 s |
+| Orchestration | 80.92 s | **501.56 s** |
+| **Wall clock** | **325.24 s** | **744.91 s** |
+| `overlap_factor` | 1.249 | 1.778 |
+
+**Rendering came in at 60.38 s against 59.74 s — within a second of the headline
+run.** The part of this project that moved to Runpod reproduced itself almost
+exactly. Every one of the 419.67 s of extra wall clock is orchestration, at home,
+on a machine that `bake_timing.py` flagged: *"20 ComfyUI renders in the window
+belong to nothing in this bake."* Something else was rendering locally
+throughout.
+
+That is the same contamination `pg-120` carried, and it gets the same treatment:
+**the 744.91 s wall clock is not a comparison and must not be quoted as one.**
+It is a second demonstration of the finding the card already makes — that this
+architecture's floor is set by the work that stayed at home.
+
+### Three pre-warm passes, three different answers, and one new failure mode
+
+| Pass | Elapsed | Workers reported warm after |
+|---|---:|---|
+| 1 (cold endpoint) | **121.88 s** | 3 |
+| 2 (proof pass) | **24.47 s** | 1 — three throttled |
+| 3 (inside the bake) | **302.41 s** | 7 |
+
+Pass 2 is the one that did its job as a proof: three of its four workers reported
+`model_load_s` of 0 and `render_s` of **1.507**, **1.507** and **1.508** s — the
+512-pixel warm signature the card records as ~1.51 s, reproduced to the
+millisecond on three separate workers.
+
+Against Cycle 4's 494.714 s and Cycle 5's 50.984 s, that is five measurements of
+"how long does a pre-warm take" spanning **24.47 s to 494.714 s**, a factor of
+20. There is no such thing as the pre-warm time. Budget the worst case.
+
+**Throttling cleared in about 40 seconds, not five.** Pass 2 left the fleet at
+`throttled: 3, running: 1`. Polling `/health` every 20 s — free — it went to
+`idle: 3, ready: 3` at the third sample and `idle: 4, ready: 4` at the fifth,
+about 40 s and 80 s later. The runbook said five seconds, from the single Cycle 4
+observation. It now says tens of seconds, and to poll rather than guess.
+
+**A new failure mode: a pre-warm request that returns `FAILED`.** Pass 3:
+
+```
+worker 2  FAILED  wall 302.41s  pull+start 0.8s  boot None  render None  -
+```
+
+`pull+start` of 0.8 s means it was dispatched to a live worker immediately and
+then failed there — no image pull, no model load, no card reported, and the whole
+pass held open for five minutes waiting on it. `/health` afterwards showed
+`"failed": 1`. Nothing in the runbook covered a request that comes back FAILED
+rather than slow, and the recovery is different from every other row: re-send it,
+because the fleet is fine and one job is not.
+
+### The timing tell for a no-op provision does not work
+
+Cycle 4 recorded that a genuine provision takes 3.29 s and a cache-satisfied
+no-op takes 0.42 s, and offered that as the way to tell them apart. This cycle's
+provision took **0.62 s** and created a real endpoint, verified by
+`runpodctl serverless list`.
+
+0.62 s sits between the two recorded figures and would have been read as a no-op.
+**The timing heuristic is retired.** `serverless list` is the only test, which is
+what the runbook already said to do and now says is the *only* thing to do.
+
+### `provision_client_endpoint.py` does not run under the system interpreter
+
+```
+ModuleNotFoundError: No module named 'runpod_flash'
+```
+
+The Flash CLI installs into its own uv tool environment
+(`~/.local/share/uv/tools/runpod-flash/`, Python 3.13.13). The system `python3`
+here is 3.14, and `runpod_flash` is not importable from it — so the script's own
+docstring, which shows `./provision_client_endpoint.py --app-dir ../flash-imagegen`
+and would use the shebang's `python3`, cannot work on this machine and never
+could. Cycle 4 must have invoked it another way and did not write that down.
+
+It has to be run as:
+
+```bash
+~/.local/share/uv/tools/runpod-flash/bin/python \
+    tools/provision_client_endpoint.py --app-dir flash-imagegen
+```
+
+### `_ensure_endpoint_ready()` now returns a URL, not an id
+
+```
+ENDPOINT_ID=https://api.runpod.ai/v2/cire2u3mv4cr3m
+```
+
+Cycle 4 recorded `ENDPOINT_ID=3qkg3z1xukpu1e` — a bare id. The endpoint id is now
+the last path segment of a returned URL. Anything that pipes this into a script
+expecting an id, which is exactly what the runbook told a reader to do, breaks.
+The bake scripts take the id as an argument, so this was caught by reading rather
+than by failing.
+
+### The Vercel fallback passed, unchanged
+
+`tools/verify_reader.mjs` against the production alias, in real Chromium: profile
+picker, shelf listing *Treasure Island*, full checkout, book open at 1 / 134, an
+illustration rendered in the reading surface, no 4xx/5xx, no unexpected console
+errors.
+
+```
+PASS -- the deployed reader downloads and reads the book end to end.
+```
+
+The bottom rung of the fallback ladder works, which is the one that matters most
+on a day when the top two might not.
 
 ### `flash app delete` reported success and left the endpoint running
 
