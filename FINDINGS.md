@@ -26,6 +26,7 @@ Rules for entries:
 | 2026-08-17 | Cycle 3, task 3 — 26 hosted text-model calls across two models, plus parameter and schema isolation | **$0.0838488300** | `clientBalance` $49.9879616000 → $49.9041127700; cross-checked against the endpoints' own `cost` fields |
 | 2026-08-18 | Cycle 3, task 5 — render pass on the 24 GB tier: cold start + 6 warm plates + 90 s idle | **$0.0376933074** | `clientBalance` $49.9041127700 → $49.8664194626, settled after teardown |
 | 2026-08-18 | Cycle 3, task 6 — render pass on a pinned RTX 4090: cold start + 6 warm plates + 90 s idle | **$0.0439145185** | `clientBalance` $49.8664194626 → $49.8225049441, settled after teardown |
+| 2026-08-18 | Cycle 4, task 0 — default-bake equivalence check: 16 prompt replays and 13 local renders, all on home hardware | $0.00 | no Runpod resource touched; `clientBalance` unread and unmoved |
 
 **Total Runpod spend to date: $0.1720812392**
 
@@ -57,6 +58,138 @@ ones taken minutes apart with nothing running in between.
 
 Cycle 2's gates were never reached, because `flash` could not authenticate.
 Cycle 3's are live.
+
+---
+
+## 2026-08-18 — Cycle 4
+
+### The default bake is unchanged by ADR-0036 and ADR-0037, proved three ways
+
+Scriptorium master gained ADR-0036 (a book-wide owner negative prompt applied to
+every plate) and ADR-0037 (per-plate video in the picture editor) on 2026-08-17,
+and the `388.63 s` baseline this cycle is measured against was taken the same
+day. If either had touched a bake where the owner supplied nothing, the baseline
+would be citing one pipeline and this cycle would be measuring another.
+
+It did not, and the check is worth more than the code reading that predicted it.
+
+**1. The bakery was already running that code when the baseline was baked.** The
+commits are dated 2026-08-17 09:02, but the source mtimes are 2026-08-13/14 and
+the `scriptorium-bakery` unit started 2026-08-16 18:55 — the work was written
+before it was committed. `library/pg-41/meta.json` carries `"negative": null`, a
+key only post-ADR-0036 `build_meta` emits, and
+`"pipeline_version": "v0.1.0-24-gfbb7e6f"`, which is ADR-0037's commit. So there
+is no before-and-after: there is one pipeline, and the baseline is on it.
+
+**2. Every request string replays byte-identically.** Re-running today's
+`wrap_prompt` against the baseline's own job record, styles catalog and prompt
+documents reproduces the stored `wrapped_prompt` and `negative_prompt` for all
+**16 of 16** plates — 9 page plates, 6 portraits, 1 cover.
+
+The guard is one expression. `wrap_prompt` folds the owner negative in as
+`user_negative or ""` (`p7_render.py:225, 239`), and `_dedupe_terms`
+(`:186-195`) skips empty terms, so `_dedupe_terms(a, b, c)` and
+`_dedupe_terms(a, b, c, "")` return the same string. `bake_config["negative"]` is
+`null` on this book. ADR-0037 never enters a bake at all: it touches
+`reader/**`, `artsets/`, and adds `animate`/`video_health` to the imagegen client
+without altering `txt2img`, `health`, `_map_error` or `_digest`, and its only
+entry point is `POST /artsets/{user}/{book}/edits/{plate_id}/video-candidate`.
+
+**3. Every plate seed-replays pixel-identically on the home GPU.** `verify_port.py`
+rebuilds each plate from its own provenance — seed, prompt, negative, size,
+reference portrait — submits it to the home ComfyUI, and compares against the
+stored PNG.
+
+| Plate | Figures | IP-Adapter weight / start | Differing pixels |
+|---|---:|---|---:|
+| 0001 | 1 | none (no reference) | **0** of 1,011,712 |
+| 0003 | 1 | 0.5 / 0.3 | **0** |
+| 0006 | 1 | 0.5 / 0.3 | **0** |
+| 0008 | 2 | 0.35 / 0.4 | **0** |
+| 0011 | 2 | 0.35 / 0.4 | **0** |
+| 0013 | 3 | 0.35 / 0.4 | **0** |
+| 0015 | 1 | 0.5 / 0.3 | **0** |
+| 0018 | 1 | none (no reference) | **0** |
+| 0020 | 2 | 0.35 / 0.4 | **0** |
+
+Nine of nine. **The home-side numbers in this file are safe to cite.**
+
+Free: 16 prompt replays and 13 local renders, all on the home RTX 5070. No
+Runpod resource was touched.
+
+### The multi-figure plates were never a silicon result, and Cycle 3's claim is corrected here
+
+The nine-plate sweep above only reads that way after a defect was found in our
+own comparison harness. The first run of it failed plate 0013 at **1,009,358 of
+1,011,712 differing pixels, max absolute channel difference 179** — on the same
+GPU, the same interpreter and the same seed that drew the stored image.
+
+**The cause is two numbers this port could not receive.** Scriptorium gives a
+plate whose frame holds more than one person a weaker, later identity anchor:
+`reference_conditioning` (`p7_render.py:333-340`) returns IP-Adapter weight
+**0.35** and start **0.4** when `derived.depicted` has more than one entry,
+against the service default of 0.5 / 0.3. It has always sent them as
+`referenceStrength` / `referenceStart`. `flash-imagegen/graph.py` hardcoded
+0.5 / 0.3 and `handler.py` had no input for them, so every multi-figure plate
+rendered here was a different computation from the one home ran.
+
+Four of the nine `pg-41` plates are multi-figure: **0008** (2 figures), **0011**
+(2), **0013** (3), **0020** (2).
+
+**Measured on home hardware, where silicon cannot be the explanation:**
+
+| Plate | Conditioning sent | Differing pixels | Max abs |
+|---|---|---:|---:|
+| 0013 | 0.5 / 0.3 — the old port | 1,009,358 (99.77%) | 179 |
+| 0013 | 0.35 / 0.4 — what home sent | **0** | **0** |
+| 0008 | 0.5 / 0.3 — the old port | 1,009,980 (99.83%) | 163 |
+| 0008 | 0.35 / 0.4 — what home sent | **0** | **0** |
+
+Same card, same interpreter, same seed, same prompt; only those two floats move,
+and they move 99.8% of the pixels.
+
+**What this corrects.** Cycle 3 recorded, under *"The plates are not
+pixel-identical, and the GPU is why"*, that **"different silicon is the cause"**
+of the divergence it measured. That conclusion is right for the plates it can be
+right for, and it is not right for all seven it was applied to:
+
+- It **stands** for the single-figure plates. 0001 uses no IP-Adapter at all and
+  still differed by 79.6% / 63.1%; 0003, 0006 and 0015 differed by 51–65%. Those
+  plates sent identical conditioning on both sides, so silicon is the only
+  variable left, and the reasoning that two Runpod cards also differ from *each
+  other* is untouched.
+- It **does not stand** for 0008, 0011 and 0013 — the three highest divergences
+  in the Cycle 3 table at 97.7–98.2%, and the three multi-figure plates in the
+  sample. Those numbers conflate two causes, and the second one is ours. The
+  conditioning gap alone produces 99.8% on hardware that never changed.
+
+The pattern was visible in the published table and was not read: the three worst
+plates clustered near 98% while the rest sat between 51% and 80%, and the split
+falls exactly on `len(depicted) > 1`. A divergence that bimodal was evidence of a
+second mechanism, not of a noisier one.
+
+**How much of the 98% is silicon is not yet known**, and it is not guessable from
+here — that measurement is task 1's comparison set, which renders 0008 and 0013
+on the pinned 4090 both with the conditioning and without it. Until then the
+honest statement is that the Cycle 3 figures for those three plates measure the
+sum of a hardware difference and a harness defect, in unknown proportion.
+
+**What it does not change.** The timing comparison is unaffected: the graph
+shape, weights, sampler, scheduler and 25 steps are identical either way, and an
+IP-Adapter weight does not change how long a render takes. `4.406 s` against
+`7.595 s` stands.
+
+**Fixed in the port.** `graph.build()` takes `reference_strength` and
+`reference_start`; `None` keeps 0.5 / 0.3, so a caller that omits them builds a
+byte-identical graph to the pre-Cycle-4 port and one image can measure both
+behaviours. `verify_port.py` recomputes what home sent from the plate's own
+`derived.depicted` and grew `--reference-strength` / `--reference-start` to force
+the other arm, which is how the cause above was proved rather than argued.
+
+**The wider point.** The harness that checks fidelity had a fidelity bug, and it
+passed for three cycles because it was only ever pointed at single-figure plates
+— Cycle 2's verification used 0001 and 0003. A check that is only run where it
+passes is not a check. The nine-plate sweep is now the default.
 
 ---
 
@@ -618,9 +751,20 @@ bought nothing: the pool substituted a card that was not on the list at all.
 
 ### The plates are not pixel-identical, and the GPU is why
 
+> **PARTLY SUPERSEDED 2026-08-18 by Cycle 4, task 0.** Kept verbatim as the
+> record of what was concluded and on what evidence. The conclusion below holds
+> for the single-figure plates (0001, 0003, 0006, 0015). It does **not** hold for
+> 0008, 0011 and 0013: those three are multi-figure, and this comparison sent
+> them IP-Adapter conditioning of 0.5 / 0.3 where home sent 0.35 / 0.4, because
+> the port had no input for the parameter. That difference alone moves 99.8% of
+> the pixels on home's own card. Their 97.7–98.2% figures therefore measure a
+> hardware difference plus a harness defect, in a proportion not yet split. See
+> *"The multi-figure plates were never a silicon result"* under Cycle 4.
+
 Cycle 2 proved `flash-imagegen` reproduces the home render graph **pixel for
 pixel** — 0 of 1,011,712 pixels different, on both the LoRA-only and the
-LoRA+IP-Adapter paths. That proof was run on home's GPU.
+LoRA+IP-Adapter paths. That proof was run on home's GPU — and, it turns out, only
+on single-figure plates, which is why it missed the conditioning gap.
 
 On Runpod's GPUs it does not hold:
 
@@ -649,6 +793,13 @@ Blackwell MIG slice, and a 4090 — cuDNN algorithm selection, TF32 behaviour an
 reduction order all differ, and 25 sampling steps compound any divergence from
 the first one. The two Runpod cards also differ from **each other**, which is the
 tell: if the container were at fault both would differ from home identically.
+
+> **Corrected 2026-08-18.** "The cause" is too strong: it is *a* cause, and the
+> only one for the single-figure plates. It was applied to all seven, and for
+> 0008, 0011 and 0013 a second cause — this port sending the wrong IP-Adapter
+> conditioning — was also present. The evidence quoted here for silicon is
+> sound; the error was in the scope of the word "the", and in not reading a
+> divergence that split cleanly into two clusters as a sign of two mechanisms.
 
 **What this costs the project, stated plainly.** The comparison is still a fair
 one *for timing* — both sides run the same graph, the same weights, the same

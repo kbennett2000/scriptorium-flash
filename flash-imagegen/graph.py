@@ -66,6 +66,35 @@ CLIP_VISION_FILE = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 REFERENCE_WEIGHT = 0.5
 REFERENCE_START = 0.3
 
+# p7_render.py:329-330 (Scriptorium ADR-0028). A plate whose frame holds more than
+# one person gets a weaker, later anchor: IP-Adapter is global and unmasked, so at
+# full strength the second figure inherits the anchor's face and clothes.
+#
+# These two numbers are the reason this file needed a Cycle 4 change. Scriptorium
+# has always sent them as `referenceStrength`/`referenceStart`; the first version of
+# this port had no way to receive them, so every multi-figure plate rendered here at
+# 0.5/0.3 while home rendered it at 0.35/0.4. That is a different computation, not a
+# different GPU, and it accounts for the ~98% divergence Cycle 3 measured on plates
+# 0008, 0011 and 0013 -- all three multi-figure -- against 51-79% on the rest.
+#
+# Scriptorium remains the authority on the rule (`reference_conditioning`,
+# p7_render.py:333-340); it is mirrored here only so `verify_port.py` can rebuild
+# what home actually sent from a plate's own provenance. `handler.py` never applies
+# the rule -- it takes the values the caller computed.
+MULTI_FIGURE_STRENGTH = 0.35
+MULTI_FIGURE_START = 0.4
+
+
+def conditioning_for_depicted(depicted: list | None) -> tuple[float | None, float | None]:
+    """``(strength, start)`` for a plate's reference, mirroring p7_render.py:333-340.
+
+    ``(None, None)`` means "accept the service defaults" -- which is what a
+    single-figure plate does, and why single-figure plates were never affected.
+    """
+    if len(depicted or []) > 1:
+        return MULTI_FIGURE_STRENGTH, MULTI_FIGURE_START
+    return None, None
+
 
 def load_template() -> Graph:
     """The base graph, copied from imagegen-service verbatim."""
@@ -164,6 +193,8 @@ def build(
     *,
     lora: bool = True,
     reference_image: str | None = None,
+    reference_strength: float | None = None,
+    reference_start: float | None = None,
 ) -> Graph:
     """One plate's graph, matching home for the same inputs.
 
@@ -171,6 +202,13 @@ def build(
     sha256(book_id \\x00 plate_id) so a plate re-renders identically
     (p7_render.py:358-361); a random default here would quietly destroy the
     reproducibility the comparison depends on.
+
+    `reference_strength` and `reference_start` are the per-plate IP-Adapter
+    conditioning Scriptorium computes (ADR-0028). `None` keeps REFERENCE_WEIGHT /
+    REFERENCE_START, so a caller that does not send them builds a byte-identical
+    graph to the pre-Cycle-4 port -- which is what lets one image measure both the
+    old behaviour and the corrected one, and keeps the interpreter change separable
+    from this one.
     """
     graph = copy.deepcopy(load_template())
 
@@ -203,7 +241,12 @@ def build(
     if lora:
         apply_lora(graph)
     if reference_image:
-        apply_ip_adapter(graph, reference_image)
+        apply_ip_adapter(
+            graph,
+            reference_image,
+            weight=REFERENCE_WEIGHT if reference_strength is None else reference_strength,
+            start_at=REFERENCE_START if reference_start is None else reference_start,
+        )
 
     return graph
 
