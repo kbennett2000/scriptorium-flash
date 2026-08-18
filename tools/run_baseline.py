@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 import urllib.error
@@ -85,6 +86,15 @@ def main() -> int:
         help="pause at the prompt-review gate and report the plate count without "
         "approving, so an out-of-range selection is caught before any GPU time "
         "is spent on rendering",
+    )
+    ap.add_argument(
+        "--at-prompt-gate",
+        help="shell command to run when the prompt gate opens, before it is "
+        "cleared. This is where a pre-warm belongs: every render in the bake "
+        "happens after this gate, and nothing before it touches a GPU we pay "
+        "for, so pre-warming here rather than at the start of the run keeps "
+        "warm workers from billing through a text phase that on a full-length "
+        "book is twenty minutes long.",
     )
     args = ap.parse_args()
 
@@ -172,6 +182,32 @@ def main() -> int:
                     log["t_end"] = now()
                     flush()
                     return 0
+
+                if args.at_prompt_gate:
+                    print(f"[{now()}] running --at-prompt-gate command",
+                          flush=True)
+                    t0 = time.monotonic()
+                    rc = subprocess.call(args.at_prompt_gate, shell=True)
+                    log["prompt_gate_hook"] = {
+                        "command": args.at_prompt_gate,
+                        "returncode": rc,
+                        "seconds": round(time.monotonic() - t0, 3),
+                    }
+                    print(f"[{now()}] hook exited {rc} after "
+                          f"{log['prompt_gate_hook']['seconds']:.1f}s",
+                          flush=True)
+                    flush()
+                    if rc != 0:
+                        # Renders are about to start and the pre-warm failed.
+                        # Do not clear the gate: a cold fleet is a fidelity
+                        # problem (every worker's first render is a cold-load
+                        # render), not only a slow one.
+                        print("hook failed -- leaving the gate closed so no "
+                              "render runs against a cold fleet", flush=True)
+                        log["final_state"] = state
+                        log["t_end"] = now()
+                        flush()
+                        return 1
 
             call("POST", f"/api/admin/books/{book_id}/{GATES[state]}")
             waited = time.monotonic() - gate_opened_at
