@@ -108,6 +108,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--book-id", default="pg-41")
     ap.add_argument("--plate", default="0001")
+    # Overrides, for isolating a cause rather than replaying home. Passing the
+    # pre-Cycle-4 values (0.5 / 0.3) on a multi-figure plate reproduces the old
+    # port's output, which is how the conditioning gap was proved rather than
+    # assumed: same GPU, same interpreter, same seed, only these two numbers move.
+    ap.add_argument("--reference-strength", type=float, default=None,
+                    help="override the IP-Adapter weight (default: what home sent)")
+    ap.add_argument("--reference-start", type=float, default=None,
+                    help="override the IP-Adapter start_at (default: what home sent)")
     args = ap.parse_args()
 
     book = LIBRARY / args.book_id
@@ -117,10 +125,30 @@ def main() -> int:
     echo = rec["render"]["params_echo"]
     ref = rec.get("reference_slug") or rec["render"].get("reference_slug")
 
+    # The conditioning home used is NOT recorded in provenance -- that is the gap
+    # this cycle found. It is recomputed from `derived.depicted`, the same input
+    # Scriptorium's `reference_conditioning` reads (p7_render.py:333-340). Without
+    # this, every multi-figure plate rebuilds at 0.5/0.3 while home drew it at
+    # 0.35/0.4, and the comparison silently measures the wrong thing.
+    depicted = ((rec.get("derived") or {}).get("depicted")) or []
+    strength, start = G.conditioning_for_depicted(depicted)
+    if strength is None:
+        provenance = "service default (single figure)"
+    else:
+        provenance = "multi-figure, ADR-0028"
+    if args.reference_strength is not None or args.reference_start is not None:
+        strength = args.reference_strength if args.reference_strength is not None else strength
+        start = args.reference_start if args.reference_start is not None else start
+        provenance = "OVERRIDDEN on the command line -- not what home sent"
+
     print(f"book={args.book_id} plate={args.plate}")
     print(f"  seed   {echo['seed']}")
     print(f"  size   {echo['width']}x{echo['height']}")
     print(f"  ref    {ref!r}  (IP-Adapter {'on' if ref else 'off'})")
+    print(f"  figures depicted: {len(depicted)}")
+    print(f"  conditioning      weight={strength if strength is not None else G.REFERENCE_WEIGHT}"
+          f"  start_at={start if start is not None else G.REFERENCE_START}"
+          f"  ({provenance})")
 
     uploaded: str | None = None
     if ref:
@@ -139,6 +167,8 @@ def main() -> int:
         height=echo["height"],
         lora=True,
         reference_image=uploaded,
+        reference_strength=strength,
+        reference_start=start,
     )
 
     print(f"\n  graph nodes: {sorted(g.keys(), key=lambda k: int(k))}")
@@ -149,6 +179,10 @@ def main() -> int:
     print(f"  steps/cfg/sampler:   {g['3']['inputs']['steps']}/"
           f"{g['3']['inputs']['cfg']}/{g['3']['inputs']['sampler_name']}"
           f"/{g['3']['inputs']['scheduler']}")
+    if "24" in g:
+        print(f"  ip-adapter node 24:  weight={g['24']['inputs']['weight']} "
+              f"start_at={g['24']['inputs']['start_at']} "
+              f"weight_type={g['24']['inputs']['weight_type']!r}")
 
     print("\nsubmitting to local ComfyUI ...")
     t0 = time.monotonic()
