@@ -144,6 +144,19 @@ def main() -> int:
     for c in cards:
         print(f"  {c}")
 
+    # N completed jobs is NOT N warm workers, and the difference is invisible
+    # unless you look for it. A worker that loads the model reports a non-zero
+    # model_load_s; one that was already resident reports 0 and renders in about
+    # a third of the time. In the first headline run, four jobs completed but only
+    # ONE reported a model load, so three were served by a worker that was already
+    # warm -- the fleet was one deep, not four, and the bake behind it fanned out
+    # 1.25-wide against a configured 4.
+    loaded = [r for r in results if (r.get("model_load_s") or 0) > 0]
+    if results and len(loaded) < args.workers:
+        print(f"\nNOTE: {len(loaded)} of {len(results)} requests reported a model load. "
+              f"The rest were served by an already-warm worker, so this warmed "
+              f"{len(loaded)} distinct worker(s), not {args.workers}.")
+
     # The point of the exercise is N warm workers. Say so plainly if it did not
     # happen, rather than letting the bake discover it.
     if after_n < args.workers:

@@ -27,11 +27,20 @@ Rules for entries:
 | 2026-08-18 | Cycle 3, task 5 — render pass on the 24 GB tier: cold start + 6 warm plates + 90 s idle | **$0.0376933074** | `clientBalance` $49.9041127700 → $49.8664194626, settled after teardown |
 | 2026-08-18 | Cycle 3, task 6 — render pass on a pinned RTX 4090: cold start + 6 warm plates + 90 s idle | **$0.0439145185** | `clientBalance` $49.8664194626 → $49.8225049441, settled after teardown |
 | 2026-08-18 | Cycle 4, task 0 — default-bake equivalence check: 16 prompt replays and 13 local renders, all on home hardware | $0.00 | no Runpod resource touched; `clientBalance` unread and unmoved |
+| 2026-08-18 | Cycle 4, task 1 — Python 3.11.15 container: one local build, 13 local renders on home's RTX 5070 | $0.00 | no Runpod resource touched |
+| 2026-08-18 | Cycle 4, gate A — pinned 4090 endpoint, cold start + comparison render set + idle tail | **$0.0254124222** | `clientBalance` $49.8225049441 → $49.7970925219, settled over ten identical reads |
+| 2026-08-18 | Cycle 4, gate B — pre-warm 4 workers + full `pg-41` bake (18 renders) + warm-worker demo + idle tail | **$0.1037042686** | `clientBalance` $49.7970925219 → $49.6933882533, settled after teardown; `runs/pg-41-runpod/balance-settle.log` |
 
-**Total Runpod spend to date: $0.1720812392**
+**Total Runpod spend to date: $0.3011979300**
 
-Cycle 3 alone: **$0.1720812392**, against a $0.20 estimate in the brief and a
-$0.45 ceiling. Closing balance **$49.8225049441**.
+Cycle 3: **$0.1720812392**, against a $0.20 estimate in the brief and a $0.45
+ceiling. Cycle 4: **$0.1291166908**, against a $0.20 plan and a **$0.30 ceiling**
+— both gates came in under their own estimates ($0.05 → $0.0254, $0.15 →
+$0.1037). Closing balance **$49.6933882533**.
+
+The total reconciles two ways to ten decimal places: the ledger rows sum to
+$0.3011979300, and the account has moved $49.9945861833 → $49.6933882533, which
+is the same number.
 
 Cycle 2 spent nothing: all three billing categories returned `[]` over an
 all-time window and `clientBalance` never moved.
@@ -528,6 +537,171 @@ the other arm, which is how the cause above was proved rather than argued.
 passed for three cycles because it was only ever pointed at single-figure plates
 — Cycle 2's verification used 0001 and 0003. A check that is only run where it
 passes is not a check. The nine-plate sweep is now the default.
+
+### The headline bake: 325.24 s against home's 388.63 s
+
+One complete `pg-41` bake, text steps at home, every render on a Runpod endpoint
+pinned to a single `NVIDIA_GEFORCE_RTX_4090`, plates fanned out four at a time.
+Source: `runs/pg-41-runpod/{run.json,timing.json,prewarm.json,health-samples.json}`.
+
+| Bucket | Home | Runpod | Change |
+|---|---:|---:|---:|
+| Text steps | 162.20 s | 161.36 s | −0.84 s |
+| Image rendering | 123.34 s | 59.74 s | **−63.60 s** |
+| Model loading | 31.19 s | 23.22 s | −7.97 s |
+| Orchestration | 71.89 s | 80.92 s | +9.03 s |
+| **Wall clock** | **388.63 s** | **325.24 s** | **−63.39 s** |
+
+**1.195× end to end**, and the Runpod run produced **18 images against home's
+16** — the text steps selected 11 plates where the baseline selected 9, so the
+faster run also did more work. Two extra illustration prompts is also why text
+came in flat rather than lower.
+
+**The parallelism did far less than the card did, and that is the finding.**
+The workers reported **92.13 s** of render work, which occupied **73.76 s** of
+wall clock. That ratio — `renderer_reported.overlap_factor` — is **1.249**,
+against a configured concurrency of 4. Decomposing the render bucket:
+
+- home rendered 16 images in 123.34 s, i.e. **7.709 s** each
+- at that rate 18 images would have taken **138.8 s**
+- the 4090 did those 18 in 92.13 s of work: the card saved **46.7 s**
+- overlapping that work saved a further **18.4 s**
+
+So of the ~65 s the render bucket lost, **72 % is the faster silicon and 28 % is
+the fan-out we built this cycle for.** Warm render median fell from **7.595 s**
+to **4.7725 s** (n=18), a 1.59× per-image speedup that lines up with Cycle 3's
+pinned-4090 single-plate number once the conditioning correction is applied.
+
+**Amdahl's floor.** With rendering at exactly zero this bake would still take
+**251.5 s** (325.24 − 59.74 − 14.02). Text steps and orchestration are now
+**74 %** of the run. Cycle 2 predicted this when text overtook rendering; the
+headline number confirms it. Nothing further is available from the GPU.
+
+### Why the fan-out only ran 1.25 wide
+
+Not a bug in the fan-out — it submitted correctly, and `/health` shows up to
+three jobs in flight with a queue behind them. The endpoint never had four
+workers to give.
+
+**The pre-warm warmed exactly one worker, while appearing to warm four.** All
+four requests returned `COMPLETED` on a 4090, which is what the script checked.
+But only **one of the four reported a model load** (`model_load_s` 3.005 s,
+render 4.821 s); the other three reported `model_load_s: 0` and rendered in
+~1.51 s, which is a model already resident. Their 476–492 s of `delayTime` was
+not four image pulls — it was one pull and three waits in the queue behind it.
+
+`/health` confirms it independently: at the moment the pre-warm finished,
+`{"idle": 0, "initializing": 1, "ready": 0, "running": 1, "throttled": 2}`. Two
+workers were **throttled** — Runpod had no free 4090 for them. The throttle
+cleared five seconds later and two more workers began initializing, but a
+17.66 GB pull takes ~8 minutes and the render phases began ~3 minutes later. One
+of those two joined mid-bake. The fourth was still `initializing` when the
+endpoint was torn down, having pulled for five minutes and rendered nothing.
+
+**This has a fidelity consequence, and it is the one the Python rebuild
+predicted.** Cycle 4 established that a worker's first render after a cold model
+load produces different pixels from every render after it — reproducibly, on
+home's own card as well as in the container. Two of the eighteen renders in this
+bake carried a cold load: `portrait-hans-van-ripper` (3.508 s) and plate `0011`
+(10.511 s). Those two images are cold-load images. Pre-warming was supposed to
+prevent exactly this, and it prevented it for one worker out of the three that
+ended up serving.
+
+**The trade the pin makes.** Cycle 3 asked for two card types and got a third
+substituted. Cycle 4 asked for one exact card and got it — every one of the 18
+renders reports `NVIDIA GeForce RTX 4090`, verified per-plate from provenance —
+but waited for it, and never got the full four. **A single-GpuType pin buys
+reproducibility and pays for it in availability.** Both halves are real and both
+belong in the talk.
+
+### The live-demo configuration: 5.06 s
+
+One request against an already-warm worker, immediately after the bake, at the
+plate resolution of 832×832: **5.06 s** end to end, of which **3.897 s** was the
+render and `delayTime` was **0.0 s**. That is the number a stage demo produces,
+and it is the honest one to quote for a live demo — provided the worker is warm.
+
+The standby worker Flash forces on us (`workersStandby`, not settable to 0 by
+CLI, SDK or REST — `runpod/flash#364`) bills **$0.00** while warm, measured
+across 11 m 13 s and 2 h 59 m 37 s in Cycle 3. On stage that defect is an
+advantage: it is free cold-start insurance, and it is the one context where the
+right answer is to leave it alone.
+
+The alternative is what this cycle measured: a cold worker is **~490 s** before
+it renders anything. Only one of the four pre-warm requests actually pulled, and
+it reported **476.6 s** of `delayTime` against Cycle 3's 431.73 s wall (414.9 s
+pull) for the previous image.
+
+**That difference is not attributed.** The new image is 42 GB uncompressed
+against 41.7 GB — 0.7 % larger, which does not account for ~10 %. Pull time
+depends on the datacenter the worker lands in and on Runpod-side network, and
+this is one sample of each. Recorded as a range, not a regression: a cold start
+is **seven to eight minutes**, and pull time is not billed but is wall clock a
+demo cannot hide.
+
+### Claude Code usage for this cycle — usage, not a charge
+
+The rule at the top of this file has existed since Cycle 1 and has never been
+exercised. It is exercised here. **These are not charges.** This work runs
+against a Claude Max subscription; no per-token money changed hands, and the
+figures below are usage against that subscription.
+
+They are **measured, not estimated** — the session transcripts record a `usage`
+object per request, aggregated from
+`~/.claude/projects/-home-kb-Desktop-projects-scriptorium-flash/*.jsonl`.
+
+| | Cycle 4 (session `72136585`) | All four sessions |
+|---|---:|---:|
+| Requests | 665 | 2,120 |
+| Output tokens | 640,788 | 2,328,069 |
+| Input tokens (uncached) | 1,330 | 9,660 |
+| Cache writes | 2,107,554 | 4,967,579 |
+| Cache reads | 192,052,515 | 589,874,218 |
+
+Cycle 4 spans 11:40–18:33 UTC on 2026-08-18. The shape worth noting is that
+uncached input is **1,330 tokens against 192 million cache reads** — essentially
+all context is served from cache across a long session.
+
+**No dollar equivalent is given.** Converting these to an API-list-price figure
+would mean quoting a rate card this environment cannot verify, and an unverified
+price in this file would be exactly the kind of retyped number the rules at the
+top forbid. The token counts are the measurement; a costed version can be
+produced if a verified rate card is supplied.
+
+### What the first parallel bake broke in the timing tool, and how it was caught
+
+`bake_timing.py` was written for a serial pipeline, where the sum of render
+durations and the wall clock they occupy are the same number. Under a fan-out
+they are not, and the tool reported the difference as nonsense rather than
+failing: `orchestration_detail.unexplained_s` came out at **−70.27 s** and
+`--markdown` died with `KeyError: 'full_cold_after_free'`.
+
+Three defects, all fixed, none of which moved a home-side number:
+
+1. **The image bucket double-counted overlap.** It summed render durations, so
+   two renders in the same second counted twice against a wall clock that only
+   runs once. It now reports the **union** of the render intervals —
+   `elapsed_union_s` — alongside the work sum and the ratio. For a serial bake
+   the intervals are disjoint and the union equals the sum exactly, which is why
+   this changed nothing published.
+2. **Remote renders counted as idle time.** The "was the orchestrator busy here"
+   test only knew about locally journalled renders, so every Runpod render
+   looked like a gap between phases. `idle_between_phases_s` fell from 132.82 s
+   to 35.07 s once renderer-reported intervals were included, and the residual
+   went positive.
+3. **The same upper-middle median bug as Cycle 3, in a second place.**
+   `sorted(...)[n // 2]` returned 5.023 s where the true median of the 18 renders
+   is **4.7725 s**. It was fixed in `render_bench.py` last cycle and this copy was
+   missed. The corrected figure is the one quoted above.
+
+**The regression check could not be run the obvious way, and that is worth
+recording.** Re-running the tool on `pg-41` no longer reproduces the baseline:
+the headline bake deleted and re-baked that book, so the live work directory now
+holds the Runpod run. The baseline reproduces byte-identically — 388.63 s, every
+bucket, `7.595 s` median, 16/16 matched, zero warnings — only when the tool is
+pointed at `~/scriptorium-baseline-pg41-20260818` via `--data-root`. Without that
+backup, taken before the re-bake, the check would have been impossible and the
+comparison would have rested on a number that could no longer be regenerated.
 
 ---
 

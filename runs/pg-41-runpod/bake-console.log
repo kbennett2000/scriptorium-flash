@@ -1,0 +1,94 @@
+
+[1m=== 1. bakery -> runpod backend ===[0m  18:11:29Z
+  SubState=running
+  RENDER_BACKEND=runpod
+  RUNPOD_ENDPOINT_ID=3qkg3z1xukpu1e
+  RENDER_CONCURRENCY=4
+  RENDER_CARD=NVIDIA
+
+[1m=== 2. clear pg-41 (baseline is backed up at ~/scriptorium-baseline-pg41-20260818) ===[0m  18:11:36Z
+{"deleted":"pg-41","removed":["library/pg-41","work/pg-41","jobs/pg-41.json","sync/positions/kris/pg-41.json"]}
+
+[1m=== 3. pre-warm 4 workers  [PAID] ===[0m  18:11:36Z
+endpoint          3qkg3z1xukpu1e
+workers warm now  0  {"idle": 0, "initializing": 0, "ready": 0, "running": 0, "throttled": 0, "unhealthy": 0}
+sending           4 concurrent 512x512 renders
+
+  worker 0  COMPLETED    wall   493.36s  pull+start   488.9s  boot 0  render 1.511  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 1  COMPLETED    wall   486.34s  pull+start   476.6s  boot 3.005  render 4.821  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 2  COMPLETED    wall   494.71s  pull+start   492.0s  boot 0  render 1.509  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+  worker 3  COMPLETED    wall   489.62s  pull+start   485.9s  boot 0  render 1.507  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+elapsed           494.71s
+workers warm      1  {"idle": 0, "initializing": 1, "ready": 0, "running": 1, "throttled": 2, "unhealthy": 0}
+distinct cards    1
+  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+WARNING: asked for 4 warm workers, health reports 1. Runpod's scaler may not have opened them all; the bake will queue rather than fan out, and its first renders on any cold worker will not be pixel-comparable to home.
+
+wrote /home/kb/Desktop/projects/scriptorium-flash/runs/pg-41-runpod/prewarm.json
+
+[1m=== 4. bake pg-41 end to end  [PAID] ===[0m  18:19:51Z
+[2026-08-18T18:19:51.499409+00:00] creating book (ingest runs inline, this blocks)
+[2026-08-18T18:19:52.603750+00:00] book_id=pg-41 state=ingested warnings=[]
+[2026-08-18T18:19:52.605901+00:00] started
+[2026-08-18T18:19:52.607281+00:00] -> ingested
+[2026-08-18T18:19:56.613048+00:00] -> mentions_running
+[2026-08-18T18:21:06.729262+00:00] -> mentions_done
+[2026-08-18T18:21:11.736391+00:00] -> cast_running
+[2026-08-18T18:21:33.771594+00:00] -> cast_done
+[2026-08-18T18:21:33.783598+00:00] cleared cast_done gate in 0.01s
+[2026-08-18T18:21:34.785164+00:00] -> cast_approved
+[2026-08-18T18:21:38.790817+00:00] -> ledger_running
+[2026-08-18T18:22:42.900480+00:00] -> ledger_done
+[2026-08-18T18:22:47.907715+00:00] -> selected
+[2026-08-18T18:22:52.915645+00:00] -> prompts_running
+[2026-08-18T18:23:27.973528+00:00] -> prompts_draft
+[2026-08-18T18:23:27.977101+00:00] prompt gate open (11 plates)
+[2026-08-18T18:23:27.979270+00:00] cleared prompts_draft gate in 0.01s
+[2026-08-18T18:23:28.980725+00:00] -> approved
+[2026-08-18T18:23:32.986764+00:00] -> portraits_rendering
+[2026-08-18T18:24:12.308275+00:00] -> portraits_review
+[2026-08-18T18:24:12.309987+00:00] cleared portraits_review gate in 0.00s
+[2026-08-18T18:24:13.311737+00:00] -> rendering
+[2026-08-18T18:25:11.732900+00:00] -> rendered
+[2026-08-18T18:25:16.740186+00:00] -> published
+[2026-08-18T18:25:16.740500+00:00] published — wall 5.4 min, gate wait 0.0s
+  bake wall clock: 325 s   (home baseline: 388.63 s)
+
+[1m=== 5. single warm request  [PAID] ===[0m  18:25:16Z
+endpoint          3qkg3z1xukpu1e
+workers warm now  3  {"idle": 0, "initializing": 1, "ready": 0, "running": 3, "throttled": 0, "unhealthy": 0}
+sending           1 concurrent 832x832 renders
+
+  worker 0  COMPLETED    wall     5.06s  pull+start     0.0s  boot 0  render 3.897  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+elapsed           5.06s
+workers warm      3  {"idle": 0, "initializing": 1, "ready": 0, "running": 3, "throttled": 0, "unhealthy": 0}
+distinct cards    1
+  cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+
+wrote /home/kb/Desktop/projects/scriptorium-flash/runs/pg-41-runpod/warm-demo.json
+
+[1m=== 6. teardown ===[0m  18:25:22Z
+  "id": "3qkg3z1xukpu1e"
+}
+  endpoints live: 0
+
+[1m=== 7. bakery -> local backend ===[0m  18:25:24Z
+  SubState=running
+
+[1m=== 8. timing ===[0m  18:25:30Z
+Traceback (most recent call last):
+  File "/home/kb/Desktop/projects/scriptorium-flash/tools/bake_timing.py", line 833, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/home/kb/Desktop/projects/scriptorium-flash/tools/bake_timing.py", line 825, in main
+    print(build_report(result))
+          ~~~~~~~~~~~~^^^^^^^^
+  File "/home/kb/Desktop/projects/scriptorium-flash/tools/bake_timing.py", line 483, in build_report
+    fc = md["sdxl"]["full_cold_after_free"]
+         ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'full_cold_after_free'
+
+[1m=== done -- balance still needs to settle before any cost is recorded ===[0m  18:25:31Z

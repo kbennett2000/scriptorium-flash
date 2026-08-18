@@ -30,7 +30,12 @@ cat > "$DROPIN/runpod.conf" <<EOF
 Environment=RENDER_BACKEND=runpod
 Environment=RUNPOD_ENDPOINT_ID=$ENDPOINT
 Environment=RENDER_CONCURRENCY=4
-Environment=RENDER_CARD=NVIDIA GeForce RTX 4090
+# Quoted, because systemd splits Environment= on whitespace: the unquoted form
+# set RENDER_CARD=NVIDIA and silently dropped "GeForce RTX 4090". Harmless in the
+# first headline run -- the value only drives a warning, and "NVIDIA" substring-
+# matches every NVIDIA card, so the check was weakened to useless rather than
+# made wrong -- but it would never have fired if placement had been substituted.
+Environment="RENDER_CARD=NVIDIA GeForce RTX 4090"
 EOF
 systemctl --user daemon-reload
 systemctl --user restart scriptorium-bakery
