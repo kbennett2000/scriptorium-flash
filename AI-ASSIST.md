@@ -127,7 +127,11 @@ than trusting the returned id, and clear the cache relative to the CWD:
 find . -name resources.pkl -path '*/.flash/*'
 ```
 
-### Standby workers track `workersMax`, not `workersMin` — RECORDED, NOT YET FILED
+### Standby workers track `workersMax`, not `workersMin` — FILED
+
+**FILED 2026-08-18 as a comment on [runpod/flash#364](https://github.com/runpod/flash/issues/364#issuecomment-5332749910).** Added before posting: the endpoint id (`n3xsvm2f30jwa5`), the `templateId` and `gpuTypeIds` from the same readback, a minimal reproduction differing from the issue's only in the ceiling, and the point that suggestion 1 in the original report still fixes it -- what changes is the description of the defect, not the remedy.
+
+Duplicate search: no search performed, and none applicable -- this is a follow-up on our own issue, not a new report.
 
 Cycle 3 filed [runpod/flash#364](https://github.com/runpod/flash/issues/364) on
 `workers=(0, 1)` deploying `workersStandby: 1`. Cycle 4 widened the endpoint to
@@ -142,6 +146,11 @@ rather than a cost. **This is a follow-up comment on #364 and has not been
 posted.** Gate B was approved as the plain option, not the variant that included
 posting it; it stays unposted pending approval rather than being filed on the
 strength of an approval that was for something else.
+
+*Annotation, Cycle 5:* the approval arrived and the comment went up — the two
+paragraphs above stand as the record of what was held back and why. The wait cost
+nothing: #364 was still open with zero comments and no triage label when the
+follow-up was posted, a day after filing.
 
 ### `gpuTypeIds` is advisory when it is a list
 
