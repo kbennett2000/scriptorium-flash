@@ -83,6 +83,43 @@ Cycle 3's are live.
 
 ## 2026-08-18 — Cycle 5
 
+### Three figures this file could not put on a card until they were labelled
+
+Building `docs/NUMBERS.md` surfaced three numbers that were correct and
+under-described. `tools/check_numbers.py` refuses to let a figure onto the card that
+does not appear in this file, and these are what it caught. None changes a conclusion;
+all three would have been mis-citable on a slide.
+
+**`14.02` in the Amdahl arithmetic had no name.** The floor is written
+`325.24 − 59.74 − 14.02` with only the first two terms explained. The third is
+`model_loading_detail.sdxl_s` in `runs/pg-41-runpod/timing.json` — SDXL's share of the
+23.22 s model-loading bucket. The other **9.2 s** is `ollama_s`, the text model's one
+cold load. So the floor removes the image model's staging along with the rendering,
+which is what it should do, and 251.5 s stands.
+
+**The published warm median includes two renders that were not warm.** `4.7725 s` is
+the median over all **18** renders of the headline bake, two of which carried a cold
+model load — `0011` and `portrait-hans-van-ripper`. Over the 16 genuinely warm renders
+the median is **4.2790 s**.
+
+Both are honest and they answer different questions. 4.7725 s is what the bake did, and
+it is right for a wall-clock decomposition. 4.2790 s is what a warm 4090 does, and it is
+right for a per-image comparison. The published **1.59×** per-image speedup against
+home's 7.595 s uses the *conservative* one; warm to warm it is **1.78×**. The headline
+325.24 s is a wall clock and is unaffected either way. (Cycle 5's `pg-120` figure,
+4.3080 s over 91 renders, is a clean warm median: its two cold-load images were
+regenerated before it was taken.)
+
+**`delayTime` on the live-demo request was 23 ms, not zero.** The entry reads "0.0 s",
+which is true to one decimal and is what the artifact rounds to;
+`runs/pg-41-runpod/warm-demo.json` records `delayTime_ms: 23`. Worth stating exactly,
+because the point of the figure is that a warm worker adds no queue delay, and 23 ms
+makes that case better than a zero a reader might suspect of being a missing value.
+
+One more, already stated but easy to misread: the **~1.51 s** pre-warm renders are at
+`size: 512`, not plate resolution. The plate-resolution warm numbers are the live-demo
+requests — **5.06 s** end to end on `pg-41` and **7.19 s** on `pg-120`.
+
 ### Treasure Island: the pre-registered threshold failed, the audit passed, and the threshold was wrong
 
 The showcase book is *Treasure Island*, Project Gutenberg #120, ingested as `pg-120` and
