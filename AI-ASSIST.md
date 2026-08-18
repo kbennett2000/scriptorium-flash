@@ -109,6 +109,40 @@ nor the stale id. Worth noting alongside Cycle 1's observation that `flash`
 writes `.flash/` into whatever directory it is run from — that directory now
 turns out to hold state that outlives the resources it describes.
 
+**Sharpened 2026-08-18, Cycle 4, after it cost a wasted provision.** "Whatever
+directory it is run from" means the **current working directory of the process**,
+not the app directory passed to it. Provisioning the headline-bake endpoint from
+`tools/` with `--app-dir ../flash-imagegen` read and wrote
+`tools/.flash/resources.pkl`; the cache cleared beforehand was
+`flash-imagegen/.flash/resources.pkl`, which was the wrong file. The provision
+then printed a plausible endpoint id and created nothing —
+`runpodctl serverless list` returned `[]`.
+
+The failure mode is worse than the documented one, because there is no error at
+all. The tell is timing: a genuine provision took **3.29 s**, a cache-satisfied
+no-op **0.42 s**. Check `runpodctl serverless list` after provisioning rather
+than trusting the returned id, and clear the cache relative to the CWD:
+
+```
+find . -name resources.pkl -path '*/.flash/*'
+```
+
+### Standby workers track `workersMax`, not `workersMin` — RECORDED, NOT YET FILED
+
+Cycle 3 filed [runpod/flash#364](https://github.com/runpod/flash/issues/364) on
+`workers=(0, 1)` deploying `workersStandby: 1`. Cycle 4 widened the endpoint to
+`workers=(0, 4)` and the deployed manifest came back with **`workersStandby: 4`**.
+
+So the field does not default to a constant — it follows the maximum. An app
+that scales up its ceiling silently scales up the number of workers Runpod's own
+configuration page describes as billing "continuously, including when idle."
+
+Still measured at **$0.00** while warm, as in Cycle 3, so this remains a caveat
+rather than a cost. **This is a follow-up comment on #364 and has not been
+posted.** Gate B was approved as the plain option, not the variant that included
+posting it; it stays unposted pending approval rather than being filed on the
+strength of an approval that was for something else.
+
 ### `gpuTypeIds` is advisory when it is a list
 
 **FILED 2026-08-18 as [runpod/flash#366](https://github.com/runpod/flash/issues/366).** Added before filing: a versions block, the `gpuTypeIds` readback JSON, both endpoint ids (`ugculdhag081uh`, `h4rz8tmjkq35fu`), and the 2.8x render-time gap between the two cards -- the reason the substitution costs something rather than merely being untidy.

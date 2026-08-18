@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import statistics
 import subprocess
 import sys
 import time
@@ -316,7 +317,15 @@ def main() -> int:
 
     warm = [r for r in results if r["kind"] == "warm" and r.get("render_s")]
     warm_render = sorted(r["render_s"] for r in warm)
-    median = warm_render[len(warm_render) // 2] if warm_render else None
+    # statistics.median, not warm_render[n//2]. The index form is the UPPER of the
+    # two middle values on an even sample, which is not the median: Cycle 3's
+    # six-sample passes published 4.406 s and 12.381 s where the medians were
+    # 4.2175 s and 11.937 s. It moved no conclusion -- the 4090 was faster than
+    # home either way -- but a number labelled "median" has to be one.
+    median = round(statistics.median(warm_render), 4) if warm_render else None
+    # Kept alongside so the Cycle 3 figures stay reproducible from this file
+    # rather than being quietly restated.
+    upper_middle = warm_render[len(warm_render) // 2] if warm_render else None
     cold = results[0]
 
     summary = {
@@ -326,6 +335,7 @@ def main() -> int:
         "cold": cold,
         "warm_render_s_sorted": warm_render,
         "warm_render_median_s": median,
+        "warm_render_upper_middle_s": upper_middle,
         "warm_n": len(warm_render),
         "idle_window_s": args.idle_window,
         "idle_worker_states": states,

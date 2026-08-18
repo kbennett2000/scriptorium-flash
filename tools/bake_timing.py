@@ -327,6 +327,24 @@ def parse_renders(lines: list[JournalLine]) -> tuple[list[Render], list[datetime
     return renders, frees
 
 
+def union_seconds(intervals: list[tuple[datetime, datetime]]) -> float:
+    """Seconds during which at least one interval was open.
+
+    Overlapping renders are counted once, because a wall clock only runs once.
+    Disjoint intervals sum exactly, so a serial bake is unaffected.
+    """
+    total = 0.0
+    end: datetime | None = None
+    for start, stop in sorted(intervals):
+        if end is None or start > end:
+            total += (stop - start).total_seconds()
+            end = stop
+        elif stop > end:
+            total += (stop - end).total_seconds()
+            end = stop
+    return round(total, 2)
+
+
 def pair_renders(renders: list[Render], render_ats: list[tuple[str, datetime]]) -> None:
     """Claim one ComfyUI prompt per plate Scriptorium recorded rendering.
 
@@ -391,6 +409,10 @@ class Artifacts:
     reattempted: int = 0
     counts: dict[str, int] = field(default_factory=dict)
     plates_selected: int | None = None
+    # Per-plate durations the RENDERER reported about itself, from
+    # `render.params_echo` (ADR-0038). Present only for backends that report them
+    # -- the Runpod worker does; the local imagegen-service does not.
+    self_reported: dict[str, dict] = field(default_factory=dict)
 
 
 def read_artifacts(work: Path) -> Artifacts:
@@ -410,6 +432,14 @@ def read_artifacts(work: Path) -> Artifacts:
                 )
             if (render.get("attempts") or 1) > 1:
                 out.reattempted += 1
+            echo = render.get("params_echo") or {}
+            if echo.get("render_s") is not None:
+                out.self_reported[path.stem] = {
+                    "render_s": echo.get("render_s"),
+                    "model_load_s": echo.get("model_load_s"),
+                    "total_s": echo.get("total_s"),
+                    "gpu": echo.get("gpu"),
+                }
 
     for label, rel in (
         ("cast-mentions", "mentions"),
@@ -468,17 +498,28 @@ def build_report(result: dict) -> str:
     out.append(f"| **Total** | **{fmt(wall)}** | **100%** |")
 
     md = result["model_loading_detail"]
-    fc = md["sdxl"]["full_cold_after_free"]
-    rs = md["sdxl"]["intra_phase_restage"]
     out += [
         "",
         f"Model loading: image model {md['sdxl_s']:.1f}s, "
         f"text model {md['ollama_s']:.1f}s ({md['ollama_cold_requests']} cold requests).",
         "",
-        f"- Deliberate reload after the orchestrator freed the GPU: "
-        f"{fc['n']} × {fc['penalty_s']:.2f}s = {fc['total_s']:.1f}s",
-        f"- Incidental re-stage under video-memory pressure: "
-        f"{rs['n']} × {rs['penalty_s']:.2f}s = {rs['total_s']:.1f}s",
+    ]
+    # A remote renderer reports its own load time and has no local journal, so the
+    # two local-ComfyUI breakdowns below simply do not exist for it. Absent is the
+    # correct answer here, not zero, and not a traceback.
+    fc = md["sdxl"].get("full_cold_after_free")
+    rs = md["sdxl"].get("intra_phase_restage")
+    if fc:
+        out.append(
+            f"- Deliberate reload after the orchestrator freed the GPU: "
+            f"{fc['n']} × {fc['penalty_s']:.2f}s = {fc['total_s']:.1f}s"
+        )
+    if rs:
+        out.append(
+            f"- Incidental re-stage under video-memory pressure: "
+            f"{rs['n']} × {rs['penalty_s']:.2f}s = {rs['total_s']:.1f}s"
+        )
+    out += [
         f"- Warm render median: {md['sdxl']['warm_render_median_s']:.2f}s "
         f"(n={md['sdxl']['warm_render_count']})",
         "",
@@ -582,8 +623,70 @@ def main() -> int:
     pair_renders(renders, artifacts.render_ats)
     matched = [r for r in renders if r.claimed_by is not None]
 
-    image_gross = sum(r.duration_s for r in matched)
-    sdxl_s, sdxl_detail = sdxl_load_seconds(matched)
+    # Where the renderer reported its own per-plate duration, use it (ADR-0038).
+    #
+    # `pair_renders` attributes a local ComfyUI log line to a plate by "the most
+    # recent unclaimed prompt finishing at or before this plate's render.at". That
+    # is only sound while renders are SERIAL. Under a parallel fan-out it
+    # mis-attributes, and nothing catches it: the counts still match, so the
+    # integrity check stays green while every duration is wrong.
+    #
+    # It also cannot see a remote render at all -- the work happened on someone
+    # else's GPU and never touched this journal -- so on a Runpod bake the local
+    # journal is silent and pairing yields nothing rather than something wrong.
+    #
+    # A number the renderer reports about itself needs no attribution, so it is
+    # preferred wherever it exists. `image_wall_s` is the wall-clock span the
+    # render phase occupied, which is NOT the sum under concurrency; the sum is
+    # kept separately as the work done.
+    self_reported = artifacts.self_reported
+    remote_render_sum = sum(
+        v["render_s"] for v in self_reported.values() if v.get("render_s") is not None
+    )
+    remote_cards = sorted({v["gpu"] for v in self_reported.values() if v.get("gpu")})
+
+    # Under a fan-out the sum of render durations is NOT the wall clock they
+    # occupied, so a bucket built from the sum does not partition the run -- it
+    # double-counts every overlap and pushes the difference into the residual,
+    # which is what made the first parallel bake report a residual of -70.27s.
+    #
+    # The union of the render intervals is the honest wall-clock figure: time
+    # when at least one render was in flight, counted once however many were.
+    # For a serial run the intervals are disjoint and the union equals the sum
+    # exactly, so this leaves every previously published serial number untouched.
+    render_intervals = [
+        (at - timedelta(seconds=v["total_s"] or v["render_s"]), at)
+        for pid, at in artifacts.render_ats
+        if (v := self_reported.get(pid)) and (v.get("total_s") or v.get("render_s"))
+    ]
+    render_union_s = union_seconds(render_intervals)
+
+    if self_reported:
+        # The renderer is the authority on its own time.
+        durations = [
+            v["render_s"] for v in self_reported.values()
+            if v.get("render_s") is not None
+        ]
+        image_gross = round(render_union_s if render_intervals else remote_render_sum, 2)
+        sdxl_s = round(sum(
+            v["model_load_s"] for v in self_reported.values()
+            if v.get("model_load_s") is not None
+        ), 2)
+        sdxl_detail = {
+            "source": "renderer-reported (params_echo)",
+            # A true median. `sorted(...)[n//2]` is the upper-middle value on an
+            # even sample, which is how Cycle 3 published 4.406 for a median of
+            # 4.2175; the same defect was fixed in render_bench.py and lived on
+            # here.
+            "warm_render_median_s": (
+                round(statistics.median(durations), 4) if durations else None
+            ),
+            "warm_render_count": len(self_reported),
+            "cards": remote_cards,
+        }
+    else:
+        image_gross = sum(r.duration_s for r in matched)
+        sdxl_s, sdxl_detail = sdxl_load_seconds(matched)
 
     model_loading = ollama_s + sdxl_s
     orchestration = wall - text_gross - image_gross
@@ -607,9 +710,15 @@ def main() -> int:
     idle_between_phases = 0.0
     idle_gaps = 0
     if len(transition_times) >= 2:
-        busy = [c.started for c in mine if c.latency_s is not None] + [
-            r.end - timedelta(seconds=r.duration_s) for r in matched
-        ]
+        # Renders count as busy however they were measured. Omitting the
+        # renderer-reported ones made every remote render look like idle time:
+        # the first Runpod bake charged ~70s of real rendering to
+        # "idle between phases" and drove `unexplained_s` negative.
+        busy = (
+            [c.started for c in mine if c.latency_s is not None]
+            + [r.end - timedelta(seconds=r.duration_s) for r in matched]
+            + [start for start, _ in render_intervals]
+        )
         for t1, t2 in zip(transition_times, transition_times[1:]):
             if any(t1 <= b <= t2 for b in busy):
                 continue
@@ -729,6 +838,27 @@ def main() -> int:
             else None,
             "pair_gap_max_s": round(max(gap_values), 3) if gap_values else None,
             "derivative_time_s": round(sum(g for g in gap_values if g >= 0), 2),
+            # ADR-0038. Present only when the backend reported its own timings.
+            # `sum_s` is work done; under a fan-out it deliberately exceeds the
+            # wall-clock the render phase occupied, and that gap IS the parallelism.
+            "renderer_reported": {
+                # The work done and the time it took are different numbers the
+                # moment renders overlap, and the ratio is the only honest way to
+                # state how wide the fan-out actually ran -- as opposed to how
+                # wide it was configured to run.
+                "work_sum_s": round(remote_render_sum, 2),
+                "elapsed_union_s": render_union_s,
+                "overlap_factor": (
+                    round(remote_render_sum / render_union_s, 3)
+                    if render_union_s else None
+                ),
+                "plates": len(self_reported),
+                "sum_s": round(remote_render_sum, 2),
+                "cards": remote_cards,
+                "per_plate": {
+                    k: v["render_s"] for k, v in sorted(self_reported.items())
+                },
+            } if self_reported else None,
         },
         "orchestration_detail": {
             "derivatives_s": round(sum(g for g in gap_values if g >= 0), 2),

@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# The Cycle 4 headline bake: pg-41 end to end, text steps at home, plates on Runpod.
+#
+# Scripted rather than typed because every second between the first pre-warm render
+# and the teardown is billed at $1.10/hr per warm worker. The expensive window is
+# steps 3-6; everything before and after is free.
+#
+#   ./headline_bake.sh <endpoint-id>
+#
+# Assumes: the endpoint is already provisioned and pinned (provision_client_endpoint.py),
+# the bakery is running on master with ADR-0038, and the pg-41 baseline is backed up.
+
+set -euo pipefail
+ENDPOINT="${1:?usage: headline_bake.sh <endpoint-id>}"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$REPO/runs/pg-41-runpod"
+DROPIN=/home/kb/.config/systemd/user/scriptorium-bakery.service.d
+mkdir -p "$OUT"
+
+say() { printf '\n\033[1m=== %s ===\033[0m  %s\n' "$1" "$(date -u +%H:%M:%SZ)"; }
+
+# --- 1. point the bakery at Runpod (free) -----------------------------------
+# A drop-in, not an edit to the tracked env file: the committed deployment stays
+# on RENDER_BACKEND=local so nothing production-facing references a torn-down
+# endpoint. Reverted in step 7.
+say "1. bakery -> runpod backend"
+mkdir -p "$DROPIN"
+cat > "$DROPIN/runpod.conf" <<EOF
+[Service]
+Environment=RENDER_BACKEND=runpod
+Environment=RUNPOD_ENDPOINT_ID=$ENDPOINT
+Environment=RENDER_CONCURRENCY=4
+# Quoted, because systemd splits Environment= on whitespace: the unquoted form
+# set RENDER_CARD=NVIDIA and silently dropped "GeForce RTX 4090". Harmless in the
+# first headline run -- the value only drives a warning, and "NVIDIA" substring-
+# matches every NVIDIA card, so the check was weakened to useless rather than
+# made wrong -- but it would never have fired if placement had been substituted.
+Environment="RENDER_CARD=NVIDIA GeForce RTX 4090"
+EOF
+systemctl --user daemon-reload
+systemctl --user restart scriptorium-bakery
+sleep 6
+systemctl --user show scriptorium-bakery -p SubState | sed 's/^/  /'
+tr '\0' '\n' < "/proc/$(systemctl --user show scriptorium-bakery -p MainPID --value)/environ" \
+  | grep -E '^RENDER_|^RUNPOD_' | sed 's/^/  /'
+
+# --- 2. clear the old pg-41 so the bake is a real end-to-end run (free) ------
+say "2. clear pg-41 (baseline is backed up at ~/scriptorium-baseline-pg41-20260818)"
+curl -s -X DELETE "http://localhost:8720/api/admin/books/pg-41" -m 60 | head -c 200; echo
+
+# --- 3. PAID FROM HERE: pre-warm every worker -------------------------------
+say "3. pre-warm 4 workers  [PAID]"
+"$REPO/tools/prewarm.py" --endpoint "$ENDPOINT" --workers 4 --out "$OUT/prewarm.json"
+
+# --- 4. the bake ------------------------------------------------------------
+say "4. bake pg-41 end to end  [PAID]"
+BAKE_T0=$(date -u +%s)
+"$REPO/tools/run_baseline.py" --gutenberg-id 41 --out "$OUT/run.json"
+BAKE_T1=$(date -u +%s)
+echo "  bake wall clock: $((BAKE_T1 - BAKE_T0)) s   (home baseline: 388.63 s)"
+
+# --- 5. the live-demo measurement -------------------------------------------
+# One request against a worker that is already warm, which is the configuration a
+# stage demo actually runs in.
+say "5. single warm request  [PAID]"
+"$REPO/tools/prewarm.py" --endpoint "$ENDPOINT" --workers 1 --size 832 \
+    --out "$OUT/warm-demo.json"
+
+# --- 6. tear down by name, immediately --------------------------------------
+say "6. teardown"
+runpodctl serverless delete "$ENDPOINT" | tail -2
+runpodctl serverless list | python3 -c "import json,sys; print(f'  endpoints live: {len(json.load(sys.stdin))}')"
+
+# --- 7. revert the bakery to the committed configuration (free) -------------
+say "7. bakery -> local backend"
+rm -f "$DROPIN/runpod.conf"; rmdir "$DROPIN" 2>/dev/null || true
+systemctl --user daemon-reload
+systemctl --user restart scriptorium-bakery
+sleep 6
+systemctl --user show scriptorium-bakery -p SubState | sed 's/^/  /'
+
+# --- 8. attribute the time (free) -------------------------------------------
+say "8. timing"
+"$REPO/tools/bake_timing.py" --book-id pg-41 --run-log "$OUT/run.json" \
+    --out "$OUT/timing.json" --markdown || true
+
+say "done -- balance still needs to settle before any cost is recorded"
