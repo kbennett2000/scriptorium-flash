@@ -36,3 +36,4 @@ venv/
 # command including --version.
 .flash/
 .build.log
+.push.log

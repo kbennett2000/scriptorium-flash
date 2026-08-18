@@ -391,6 +391,10 @@ class Artifacts:
     reattempted: int = 0
     counts: dict[str, int] = field(default_factory=dict)
     plates_selected: int | None = None
+    # Per-plate durations the RENDERER reported about itself, from
+    # `render.params_echo` (ADR-0038). Present only for backends that report them
+    # -- the Runpod worker does; the local imagegen-service does not.
+    self_reported: dict[str, dict] = field(default_factory=dict)
 
 
 def read_artifacts(work: Path) -> Artifacts:
@@ -410,6 +414,14 @@ def read_artifacts(work: Path) -> Artifacts:
                 )
             if (render.get("attempts") or 1) > 1:
                 out.reattempted += 1
+            echo = render.get("params_echo") or {}
+            if echo.get("render_s") is not None:
+                out.self_reported[path.stem] = {
+                    "render_s": echo.get("render_s"),
+                    "model_load_s": echo.get("model_load_s"),
+                    "total_s": echo.get("total_s"),
+                    "gpu": echo.get("gpu"),
+                }
 
     for label, rel in (
         ("cast-mentions", "mentions"),
@@ -582,8 +594,51 @@ def main() -> int:
     pair_renders(renders, artifacts.render_ats)
     matched = [r for r in renders if r.claimed_by is not None]
 
-    image_gross = sum(r.duration_s for r in matched)
-    sdxl_s, sdxl_detail = sdxl_load_seconds(matched)
+    # Where the renderer reported its own per-plate duration, use it (ADR-0038).
+    #
+    # `pair_renders` attributes a local ComfyUI log line to a plate by "the most
+    # recent unclaimed prompt finishing at or before this plate's render.at". That
+    # is only sound while renders are SERIAL. Under a parallel fan-out it
+    # mis-attributes, and nothing catches it: the counts still match, so the
+    # integrity check stays green while every duration is wrong.
+    #
+    # It also cannot see a remote render at all -- the work happened on someone
+    # else's GPU and never touched this journal -- so on a Runpod bake the local
+    # journal is silent and pairing yields nothing rather than something wrong.
+    #
+    # A number the renderer reports about itself needs no attribution, so it is
+    # preferred wherever it exists. `image_wall_s` is the wall-clock span the
+    # render phase occupied, which is NOT the sum under concurrency; the sum is
+    # kept separately as the work done.
+    self_reported = artifacts.self_reported
+    remote_render_sum = sum(
+        v["render_s"] for v in self_reported.values() if v.get("render_s") is not None
+    )
+    remote_cards = sorted({v["gpu"] for v in self_reported.values() if v.get("gpu")})
+
+    if self_reported:
+        # The renderer is the authority on its own time.
+        image_gross = round(remote_render_sum, 2)
+        sdxl_s = round(sum(
+            v["model_load_s"] for v in self_reported.values()
+            if v.get("model_load_s") is not None
+        ), 2)
+        sdxl_detail = {
+            "source": "renderer-reported (params_echo)",
+            "warm_render_median_s": (
+                round(sorted(
+                    v["render_s"] for v in self_reported.values()
+                    if v.get("render_s") is not None
+                )[len([v for v in self_reported.values()
+                        if v.get("render_s") is not None]) // 2], 3)
+                if remote_render_sum else None
+            ),
+            "warm_render_count": len(self_reported),
+            "cards": remote_cards,
+        }
+    else:
+        image_gross = sum(r.duration_s for r in matched)
+        sdxl_s, sdxl_detail = sdxl_load_seconds(matched)
 
     model_loading = ollama_s + sdxl_s
     orchestration = wall - text_gross - image_gross
@@ -729,6 +784,17 @@ def main() -> int:
             else None,
             "pair_gap_max_s": round(max(gap_values), 3) if gap_values else None,
             "derivative_time_s": round(sum(g for g in gap_values if g >= 0), 2),
+            # ADR-0038. Present only when the backend reported its own timings.
+            # `sum_s` is work done; under a fan-out it deliberately exceeds the
+            # wall-clock the render phase occupied, and that gap IS the parallelism.
+            "renderer_reported": {
+                "plates": len(self_reported),
+                "sum_s": round(remote_render_sum, 2),
+                "cards": remote_cards,
+                "per_plate": {
+                    k: v["render_s"] for k, v in sorted(self_reported.items())
+                },
+            } if self_reported else None,
         },
         "orchestration_detail": {
             "derivatives_s": round(sum(g for g in gap_values if g >= 0), 2),

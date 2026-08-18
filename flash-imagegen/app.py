@@ -19,7 +19,7 @@ from runpod_flash import Endpoint, GpuType, PodTemplate
 
 # Private: the image carries model weights, including a LoRA whose licence
 # forbids redistribution. See MODELS.md. Verified private after every push.
-IMAGE = "ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0"
+IMAGE = "ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0-py31115"
 
 # Runpod needs its own credential to pull a private image. It is created in the
 # console (the CLI's only interface is `runpodctl registry create --password
@@ -52,18 +52,29 @@ imagegen = Endpoint(
     image=IMAGE,
     gpu=TIER,
 
-    # Scale to zero -- with a caveat measured this cycle. This produces
-    # workersMin 0 but ALSO workersStandby 1, so Flash holds one worker warm
-    # rather than truly scaling to zero, and neither runpodctl nor the SDK
-    # exposes a way to set standby to 0. Measured over 11 minutes on the 16GB
-    # tier, that warm worker billed nothing (FINDINGS.md), which is why this is
-    # a caveat and not a blocker -- but the endpoint is still torn down by name
-    # the moment a measurement pass finishes, rather than left up on trust.
-    workers=(0, 1),
+    # Cycle 4: four workers, because that is what makes a fan-out mean anything.
+    # Scriptorium now renders plates concurrently (ADR-0038), and concurrency
+    # against a one-worker endpoint is just a queue -- max_concurrency defaults to
+    # 1, so one worker renders one plate at a time no matter how many arrive.
+    # Four is where the return flattens: pg-41 is 16 renders, and past four the
+    # bake is dominated by the text steps that stay at home, not by rendering.
+    #
+    # Still scale-to-zero in intent, and still not in fact. This produces
+    # workersMin 0 but ALSO workersStandby 1, which neither runpodctl nor the SDK
+    # can set to 0 -- filed as runpod/flash#364. Measured twice at $0.0000000000
+    # over 11 m 13 s and 2 h 59 m 37 s, so it is a caveat rather than a blocker,
+    # and on stage it is free cold-start insurance. The endpoint is still torn
+    # down by name the moment a measurement pass finishes, rather than left up on
+    # trust.
+    workers=(0, 4),
 
     # Seconds. The worker stays warm this long after a request, and that time IS
-    # billed. Kept short for measurement; a real workload fanning out plates
-    # would raise it so a burst does not pay repeated cold starts.
+    # billed -- it is the dominant cost of the headline bake, four workers wide.
+    # Kept at 60 anyway: a render phase has gaps in it (the portrait phase, a
+    # review transition, the runner's 5 s tick), and a worker that dies in one of
+    # them pays a fresh cold start of six to seven minutes. Trading ~$0.07 of idle
+    # tail against that risk is the right side of the trade when the wall-clock
+    # number is the entire point of the cycle.
     idle_timeout=60,
 
     # NO volume=. A network volume bills continuously whether or not a worker
