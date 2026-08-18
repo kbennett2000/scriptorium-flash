@@ -72,7 +72,26 @@ def settled_balance(reads: int = 8, gap: float = 30.0) -> float:
     return prev
 
 
-def provenance(plate: str) -> dict:
+def conditioning_for(rec: dict) -> tuple[float | None, float | None]:
+    """What Scriptorium sent for this plate, from its own ``derived.depicted``.
+
+    Mirrors ``p7_render.reference_conditioning``: a plate whose frame holds more
+    than one person gets a weaker, later identity anchor (0.35 / 0.4) than the
+    service default (0.5 / 0.3), because IP-Adapter is global and unmasked and at
+    full strength the second figure inherits the anchor's face and clothes.
+
+    Cycle 3's bench did not send these, and the worker had no input for them, so
+    every multi-figure plate was compared against a home render it did not match
+    by construction. Four of the nine pg-41 plates are multi-figure, and three of
+    them were the three highest divergences in that table.
+    """
+    depicted = ((rec.get("derived") or {}).get("depicted")) or []
+    if len(depicted) > 1:
+        return 0.35, 0.4
+    return None, None
+
+
+def provenance(plate: str, send_conditioning: bool = True) -> dict:
     """Rebuild the exact request home made for this plate.
 
     The IP-Adapter reference matters twice over. Seven of the nine pg-41 plates
@@ -98,6 +117,19 @@ def provenance(plate: str) -> dict:
             raise SystemExit(f"plate {plate} needs portrait {portrait}, which is missing")
         payload["reference_png_b64"] = base64.b64encode(portrait.read_bytes()).decode()
         payload["_reference_slug"] = slug  # stripped before sending; for the log
+        strength, start = conditioning_for(rec)
+        if send_conditioning and strength is not None:
+            payload["reference_strength"] = strength
+            payload["reference_start"] = start
+        # `send_conditioning=False` reproduces the pre-Cycle-4 request exactly, which
+        # is the control arm: the worker then falls back to 0.5 / 0.3. Running both
+        # arms of the same plate on the same worker is what separates the
+        # conditioning gap from the hardware difference.
+        payload["_conditioning"] = (
+            f"{strength}/{start}" if (send_conditioning and strength is not None)
+            else "worker default (0.5/0.3)"
+        )
+    payload["_figures"] = len(((rec.get("derived") or {}).get("depicted")) or [])
     return payload
 
 
@@ -165,18 +197,36 @@ def main() -> int:
                     help="seconds to sit warm and idle afterwards, doing nothing")
     ap.add_argument("--cold-timeout", type=float, default=1800.0)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--comparison-set", action="store_true",
+                    help="the Cycle 4 task 1 set: 0001/0003 isolate the interpreter, "
+                         "0008/0013 run both conditioning arms to split the two causes")
     args = ap.parse_args()
 
-    plates = PLATES[: args.warm + 1]
+    # Each row is (plate, send_conditioning). The default pass is the Cycle 3
+    # protocol with conditioning now sent, so it is comparable to home's own work.
+    if args.comparison_set:
+        # Six rows chosen to separate two causes with one image (Cycle 4, task 1).
+        # 0001 has no IP-Adapter at all and 0003 is single-figure, so both isolate
+        # the interpreter change. 0008 and 0013 run BOTH arms: without conditioning
+        # is the Cycle 3 replay, with it is the request home actually made. If the
+        # multi-figure plates fall only in the "with" arm, conditioning is proved as
+        # the second cause and silicon keeps the remainder.
+        rows = [("0001", True), ("0003", True),
+                ("0008", False), ("0008", True),
+                ("0013", False), ("0013", True)]
+    else:
+        rows = [(p, True) for p in PLATES[: args.warm + 1]]
+
     if args.dry_run:
         print(f"endpoint {args.endpoint}  tier {args.tier}")
-        print(f"cold: {plates[0]}   warm: {', '.join(plates[1:])}")
-        for p in plates:
-            pr = provenance(p)
+        print(f"cold: {rows[0][0]}   then: {', '.join(p for p, _ in rows[1:])}")
+        for plate, send in rows:
+            pr = provenance(plate, send)
             ref = pr.get("_reference_slug")
             kb = len(pr.get("reference_png_b64", "")) // 1024
-            print(f"  {p}: seed {pr['seed']:>10}  {pr['width']}x{pr['height']}  "
-                  f"ref {ref or '-':<12} ({kb} KB b64)  {pr['prompt'][:40]}...")
+            print(f"  {plate}: seed {pr['seed']:>10}  {pr['width']}x{pr['height']}  "
+                  f"figures {pr.get('_figures', 0)}  ref {ref or '-':<12} ({kb} KB b64)  "
+                  f"cond {pr.get('_conditioning', 'n/a')}")
         print("\ndry run, nothing submitted")
         return 0
 
@@ -191,10 +241,12 @@ def main() -> int:
     print(f"started           {t_start}\n")
 
     results = []
-    for i, plate in enumerate(plates):
+    for i, (plate, send_conditioning) in enumerate(rows):
         kind = "COLD" if i == 0 else "warm"
-        pr = provenance(plate)
-        ref_slug = pr.pop("_reference_slug", None)
+        pr = provenance(plate, send_conditioning)
+        # Everything underscore-prefixed is for the log, never for the wire.
+        meta = {k: pr.pop(k) for k in list(pr) if k.startswith("_")}
+        ref_slug = meta.get("_reference_slug")
         job, wall = submit(args.endpoint, pr,
                            args.cold_timeout if i == 0 else 600.0)
 
@@ -202,6 +254,9 @@ def main() -> int:
             "plate": plate,
             "kind": kind,
             "reference_slug": ref_slug,
+            "figures_depicted": meta.get("_figures", 0),
+            "conditioning": meta.get("_conditioning", "n/a"),
+            "conditioning_sent": bool(send_conditioning),
             "wall_s": round(wall, 3),
             "status": job.get("status"),
             "delayTime_ms": job.get("delayTime"),
@@ -214,8 +269,17 @@ def main() -> int:
             rec["total_s"] = out.get("total_s")
             rec["gpu"] = out.get("gpu")
             rec["ip_adapter"] = out.get("ip_adapter")
+            # The worker echoes what it actually built the graph with, so a plate's
+            # conditioning is checkable after the fact rather than inferred from the
+            # request we believe we sent.
+            rec["reference_strength_used"] = out.get("reference_strength")
+            rec["reference_start_used"] = out.get("reference_start")
             if out.get("image_png_b64"):
-                (run_dir / f"{plate}.png").write_bytes(
+                # The comparison set renders 0008 and 0013 twice, once per
+                # conditioning arm, so the filename has to carry the arm or the
+                # second render silently overwrites the evidence for the first.
+                suffix = "" if send_conditioning else "-nocond"
+                (run_dir / f"{plate}{suffix}.png").write_bytes(
                     base64.b64decode(out["image_png_b64"]))
                 rec["fidelity"] = compare_to_home(plate, out["image_png_b64"])
             elif out.get("error"):

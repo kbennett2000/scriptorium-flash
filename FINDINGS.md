@@ -117,6 +117,127 @@ Nine of nine. **The home-side numbers in this file are safe to cite.**
 Free: 16 prompt replays and 13 local renders, all on the home RTX 5070. No
 Runpod resource was touched.
 
+### The container runs a real 3.11.15, the workaround is gone, and it is now pixel-identical to home
+
+Cycle 3 shipped `ENV PYTORCH_JIT=0` because the container segfaulted on boot every
+time, inside `torch.jit.script` while importing kornia. The cause was the
+interpreter: Ubuntu 22.04's `python3.11` package is **3.11.0rc1**, a release
+candidate from 2022, against home's **3.11.15**.
+
+**deadsnakes carries the exact release home runs**, which was the one open risk in
+paying this debt:
+
+```
+Package: python3.11
+Version: 3.11.15-1+jammy1
+```
+
+It is pinned to that string rather than floated. deadsnakes ships only the latest
+patch in a series, so an unpinned install silently drifts off home the day 3.11.16
+lands — and a pin that names a series rather than a release is what caused this
+defect in the first place. The build now also *asserts* the interpreter, so a drift
+fails the build instead of being discovered on a paid worker:
+
+```
+#6 0.205 interpreter: Python 3.11.15
+```
+
+That assertion was validated in isolation first — a 37-line throwaway Dockerfile
+containing only the apt block, built in **1 minute**, rather than discovering a
+broken PPA pin 30 minutes into a full build.
+
+| | Cycle 3 image | Cycle 4 image |
+|---|---|---|
+| Tag | `sdxl-base-1.0` | **`sdxl-base-1.0-py31115`** |
+| Python | 3.11.0rc1 | **3.11.15 final** |
+| `PYTORCH_JIT` | `0` (workaround) | **unset** |
+| `torch.jit` enabled | False | **True**, matching home |
+| Size (`docker image inspect`) | 17.66 GB | **17.72 GB** |
+| Local build | 31 m 29 s | **12 m 35 s** (warm layer cache for the model staging) |
+
+A new tag rather than an overwrite: the apt layer invalidates everything below it,
+so all ~13 GB re-pushes either way, and keeping `sdxl-base-1.0` intact preserves the
+Cycle 3 artifact the comparison rests on.
+
+**It boots.** No segfault, TorchScript on, all four IP-Adapter nodes registered,
+`torch 2.11.0+cu128` and `kornia 0.8.3` identical to home.
+
+**And it renders what home renders.** Run on home's own RTX 5070 — same silicon, so
+there is nowhere for a hardware difference to hide:
+
+| Plate | Figures | IP-Adapter | Differing pixels |
+|---|---|---|---:|
+| 0001 | 1 | none | **0** of 1,011,712 |
+| 0003 | 1 | ichabod, 0.5 / 0.3 | **0** |
+| 0008 | 2 | brom-bones, 0.35 / 0.4 | **0** |
+| 0013 | 3 | ichabod, 0.35 / 0.4 | **0** |
+| 0018 | 1 | none | **0** |
+
+**The container is exonerated completely.** Whatever divergence remains on a Runpod
+card is silicon, because on identical silicon this image is bit-identical to home on
+both the LoRA-only and the IP-Adapter paths.
+
+Free. One local build and thirteen local renders; no Runpod resource was touched.
+
+### A model that has just been loaded does not render what a resident model renders
+
+This was found while running the check above, and it is not about the container.
+
+The first render after a cold model load differs from every render after it — on the
+same card, the same seed, the same graph. Plate 0001, which has no IP-Adapter and is
+therefore the simplest path in the book:
+
+| Where | Model state | Differing pixels | Max abs |
+|---|---|---:|---:|
+| Home ComfyUI | cold (VRAM freed first) | **842,339** (83.3%) | 221 |
+| Home ComfyUI | warm | **0** | 0 |
+| Cycle 4 container, home 5070 | cold (VRAM freed first) | **842,339** (83.3%) | 221 |
+| Cycle 4 container, home 5070 | warm | **0** | 0 |
+
+Both sides give **the same number to the pixel**, in both states, and each state is
+reproducible — the cold figure was measured twice on each side and did not move. So
+this is deterministic behaviour of the render stack, not noise, and not the
+container's: matching home's *cold* result as exactly as its warm one is stronger
+evidence of faithfulness than matching only the warm one would have been.
+
+The mechanism is ComfyUI's dynamic VRAM staging (`Model SDXL prepared for dynamic
+VRAM loading. 4896MB Staged. 788 patches attached. Force pre-loaded 512 weights`),
+which is present and identical on both sides. What is not yet established is *which*
+part of that staging moves the numerics.
+
+**Why the baseline is unaffected.** Portraits render before page plates, so the
+cold-load render in the `pg-41` bake was a portrait; every page plate drew against a
+resident model. That is why home's stored `0001` matches a warm render, and why all
+nine plates passed the task 0 sweep.
+
+**Why it matters for this cycle.** On Runpod each worker's *first* render is a
+cold-load render. Fanning 16 plates across 4 workers without pre-warming would make
+4 of them cold-load renders that differ from home for a reason that has nothing to do
+with the GPU. The headline bake pre-warms every worker before it starts, and that is
+now a fidelity requirement rather than only a wall-clock one.
+
+**The honest general statement** is stronger than the one Cycle 3 reached. A plate
+re-renders identically only when the card **and** the model-residency state match.
+Cycle 3 recorded the first half of that; this is the second.
+
+### A measurement trap: ComfyUI's execution cache looks exactly like a hang
+
+Submitting a byte-identical graph twice in a row returns the cached result:
+
+```
+[INFO] got prompt
+[INFO] Prompt executed in 0.00 seconds
+```
+
+The history entry carries no new `outputs`, so a client polling for outputs waits
+until its own timeout and reports a hang. Nothing is wrong and nothing is running.
+
+It cost twenty minutes here, chasing a GPU that looked stuck while `queue_running`
+and `queue_pending` were both zero. It never touched a recorded number — every
+figure above came from an execution that reported a real duration, never `0.00` —
+but a benchmark that re-submits one plate repeatedly would measure the cache rather
+than the renderer. Vary the graph, or clear the cache, between repeats.
+
 ### Five issues filed, on three repositories
 
 Kris approved drafts 1–5. All five are now filed; draft 6 is held back by

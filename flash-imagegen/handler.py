@@ -159,16 +159,46 @@ def render(prompt_graph: dict) -> bytes:
     raise RuntimeError(f"render timed out after {RENDER_TIMEOUT_S}s")
 
 
+def _opt_float(value: object, field: str) -> float | None:
+    """``None`` passes through; anything else must be a real number.
+
+    Booleans are rejected explicitly: ``bool`` is a subclass of ``int``, so
+    ``True`` would otherwise arrive as an IP-Adapter weight of 1.0.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError(f"{field} must be a number, got {type(value).__name__}")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} must be a number, got {value!r}") from None
+
+
 def handler(job: dict) -> dict:
     """Runpod serverless entry point.
 
     Input:
-        prompt            required, the wrapped positive prompt
-        negative          the caller's negative; APPENDED to the template baseline
-        seed              required; Scriptorium derives it deterministically
-        width, height     default 832x1216
-        reference_png_b64 optional IP-Adapter reference portrait
-        lora              default true
+        prompt             required, the wrapped positive prompt
+        negative           the caller's negative; APPENDED to the template baseline
+        seed               required; Scriptorium derives it deterministically
+        width, height      default 832x1216
+        reference_png_b64  optional IP-Adapter reference portrait
+        reference_strength optional IP-Adapter weight;   absent -> 0.5
+        reference_start    optional IP-Adapter start_at; absent -> 0.3
+        lora               default true
+
+    `reference_strength` and `reference_start` exist because Scriptorium has
+    always computed them per plate and this handler had no way to receive them.
+    A plate whose frame holds more than one person gets a weaker, later anchor --
+    0.35 / 0.4 against the 0.5 / 0.3 default (p7_render.py:333-340) -- and every
+    multi-figure plate rendered here before Cycle 4 used the wrong pair. On home
+    hardware that difference alone moves 99.8% of the pixels, which is most of
+    what Cycle 3 attributed to silicon on plates 0008, 0011 and 0013.
+
+    Absent means the old defaults, deliberately: it keeps one image able to
+    render both the old behaviour and the corrected one, so the interpreter
+    change and this change stay separable in the comparison set.
     """
     t0 = time.monotonic()
     inp = job.get("input") or {}
@@ -180,6 +210,16 @@ def handler(job: dict) -> dict:
         # plate ids so a plate re-renders identically; inventing one here would
         # quietly destroy that.
         return {"error": "seed is required"}
+
+    # Reject a malformed conditioning value rather than falling back to the
+    # default. A silent fallback here renders a plate that is not the one asked
+    # for and reports success, which is the failure mode this whole parameter
+    # exists to close.
+    try:
+        strength = _opt_float(inp.get("reference_strength"), "reference_strength")
+        start = _opt_float(inp.get("reference_start"), "reference_start")
+    except ValueError as exc:
+        return {"error": str(exc)}
 
     boot_s = wait_for_comfy()
 
@@ -195,6 +235,8 @@ def handler(job: dict) -> dict:
         height=int(inp.get("height", G.PLATE_HEIGHT)),
         lora=bool(inp.get("lora", True)),
         reference_image=reference,
+        reference_strength=strength,
+        reference_start=start,
     )
 
     t1 = time.monotonic()
@@ -215,6 +257,13 @@ def handler(job: dict) -> dict:
         "scheduler": g["3"]["inputs"]["scheduler"],
         "lora": g.get("20", {}).get("inputs", {}).get("lora_name"),
         "ip_adapter": bool(reference),
+        # Echoed from the BUILT GRAPH, not from the request, so this records what
+        # was actually rendered rather than what was asked for. Null when no
+        # reference conditioned this plate. Scriptorium folds this whole response
+        # into the plate's provenance, which is what makes a multi-figure plate's
+        # conditioning checkable after the fact instead of inferable.
+        "reference_strength": g.get("24", {}).get("inputs", {}).get("weight"),
+        "reference_start": g.get("24", {}).get("inputs", {}).get("start_at"),
         # The card model, from ComfyUI. Not NVIDIA_VISIBLE_DEVICES -- see
         # _device_name(). Every per-plate number in FINDINGS.md is quoted
         # beside this value.

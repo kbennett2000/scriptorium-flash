@@ -11,7 +11,12 @@
 #   ComfyUI                 0.27.0 at 6cc8144
 #   ComfyUI_IPAdapter_plus  a0f451a
 #   torch                   2.11.0+cu128
-#   python                  3.11
+#   python                  3.11.15   (deadsnakes; see the apt block below)
+#
+# The Python line used to read "3.11" and that vagueness was the defect: the
+# distro package behind it was 3.11.0rc1, a 2022 release candidate, against
+# home's 3.11.15. Every pin in this list is now an exact version, because a pin
+# that names a series rather than a release is not a pin.
 #
 # BUILD THIS IMAGE PRIVATELY. It carries ~11GB of model weights fetched at build
 # time, including a LoRA whose licence forbids redistribution. See MODELS.md.
@@ -31,9 +36,41 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     COMFY_URL=http://127.0.0.1:8188
 
+# --- the interpreter, pinned to the exact release home runs -----------------
+# Ubuntu 22.04's own `python3.11` package is 3.11.0rc1 -- a release candidate
+# from 2022 -- and under it this container segfaulted on boot every time, inside
+# `torch.jit.script` while importing kornia. See the note further down; the
+# workaround it describes (PYTORCH_JIT=0) was removed in Cycle 4 in favour of
+# this.
+#
+# deadsnakes carries 3.11.15-1+jammy1, which is home's interpreter exactly
+# (`/home/kb/comfyui/.venv/bin/python --version` -> 3.11.15). The version is
+# pinned rather than floated: deadsnakes ships only the latest patch in a
+# series, so an unpinned install silently drifts off home the day 3.11.16 lands,
+# and this file's whole purpose is that it does not drift.
+#
+# `python3-pip` is deliberately NOT installed: on jammy it targets 3.10 and
+# would shadow the interpreter below. `ensurepip` bootstraps pip for 3.11
+# itself, which is what the pip line further down then upgrades.
+ARG PYTHON_VERSION=3.11.15-1+jammy1
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.11 python3.11-venv python3-pip git ca-certificates \
+        software-properties-common gnupg curl git ca-certificates \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3.11=${PYTHON_VERSION} \
+        python3.11-venv=${PYTHON_VERSION} \
+        python3.11-dev=${PYTHON_VERSION} \
+        python3.11-minimal=${PYTHON_VERSION} \
+    && python3.11 -m ensurepip --upgrade \
     && rm -rf /var/lib/apt/lists/*
+
+# Fail the build here, loudly, rather than discovering at runtime that the
+# interpreter is not the one this image claims. The old defect was invisible
+# precisely because nothing in the build asserted it.
+RUN test "$(python3.11 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')" = "3.11.15" \
+    && python3.11 -c "import sys; assert sys.version_info.releaselevel == 'final', sys.version" \
+    && echo "interpreter: $(python3.11 --version)"
 
 # --- ComfyUI, pinned to the commit home is running -------------------------
 ARG COMFY_COMMIT=6cc8144
@@ -77,33 +114,38 @@ RUN --mount=type=bind,from=modelcache,target=/modelcache \
 COPY workflow-sdxl-txt2img.json graph.py handler.py /opt/app/
 WORKDIR /opt/app
 
-# --- KNOWN DEFECT, worked around here; the real fix is Cycle 4 --------------
+# --- the defect that used to be worked around here, kept as the record ------
 #
-# Without this the container SEGFAULTS on boot, every time, before ComfyUI ever
-# serves a request. The fault is in `torch.jit.script` while importing kornia,
-# during ComfyUI's built-in node import.
+# Cycle 3 shipped `ENV PYTORCH_JIT=0` at this point in the file. Without it the
+# container segfaulted on boot, every time, before ComfyUI served a request:
 #
-# The cause is the interpreter, not the packages. Ubuntu 22.04's `python3.11`
-# is **3.11.0rc1** -- a 2022 release candidate. Home runs 3.11.15. kornia
-# (0.8.3), torch (2.11.0+cu128) and every other pinned version are identical on
-# both sides; only the Python differs, and only the container crashes.
+#     Fatal Python error: Segmentation fault
+#     Stack (most recent call first):
+#       File ".../torch/jit/_script.py", line 1262 in _script_impl
+#       File ".../kornia/__init__.py", line 28 in <module>
+#       File "/opt/ComfyUI/nodes.py", line 2510 in init_builtin_extra_nodes
 #
-# So the header of this file is wrong where it claims everything is pinned to
-# home: the interpreter was not. The proper fix is to install a real 3.11.15
-# (deadsnakes), which invalidates every layer below the apt install -- a full
-# ~11GB rebuild and re-push. Deferred to Cycle 4 as a deliberate, recorded
-# trade-off, not an oversight.
+# The cause was the interpreter, not the packages. kornia 0.8.3, torch
+# 2.11.0+cu128, torchvision 0.26.0+cu128, scipy 1.17.1 and safetensors 0.8.0
+# were identical on both sides; only the Python differed -- 3.11.0rc1 here
+# against 3.11.15 at home -- and only the container crashed, inside a function
+# that does deep bytecode introspection and is exactly what a release candidate
+# breaks.
 #
-# What this costs in the meantime: TorchScript is off, while home runs with it
-# on. kornia is used in IP-Adapter image preprocessing and 7 of the 9 pg-41
-# plates condition on a reference portrait, so a low-order pixel difference is
-# possible in principle. tools/render_bench.py pixel-compares every returned
-# plate against the one home already rendered, so if it happens it is measured
-# and reported rather than assumed away.
+# Disabling TorchScript fixed the crash but left the container running a
+# different configuration from home: JIT off here, on at home, with kornia in
+# the IP-Adapter preprocessing path that 7 of the 9 pg-41 plates use.
 #
-# Placed last on purpose: an ENV here changes only the image config, so every
-# large layer above keeps its digest and an in-flight push is not wasted.
-ENV PYTORCH_JIT=0
+# Cycle 4 removed it by pinning the real interpreter in the apt block above.
+# The ENV is gone rather than commented out, because a disabled workaround left
+# in place is a thing someone re-enables.
+#
+# Note for anyone re-running the push: the ENV was deliberately the LAST
+# instruction, so that changing it rewrote only the image config and left every
+# large layer's digest intact. The apt block has no such property -- editing it
+# invalidates ComfyUI, torch, the IP-Adapter nodes and all 10.8 GB of models, so
+# this change costs a full rebuild and a full re-push. That was known and
+# accepted when it was deferred.
 
 # ComfyUI in the background, then the Runpod handler. The handler waits for
 # ComfyUI to answer /system_stats and reports that wait separately as

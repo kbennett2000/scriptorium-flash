@@ -119,3 +119,45 @@ Credit is optional under its licence and given anyway. Its terms permit this use
 private, free, single-user — and **prohibit running it on any service that
 monetizes image generation**. See [MODELS.md](MODELS.md) before changing how this
 endpoint is exposed.
+
+## Building and pushing (Cycle 4)
+
+Recorded here because Cycle 3 did not write these down, and the deadsnakes rebuild
+had to reconstruct them from the Dockerfile's comments.
+
+```bash
+# Verify the local model cache first -- free, and it is the difference between a
+# 12-minute build and an 11 GB download.
+python3 fetch_models.py --check-only --dest /home/kb/comfyui/models
+
+# Build. --build-context replaces the empty `modelcache` stage with the local
+# ComfyUI models dir; without it every file is fetched from HuggingFace instead.
+docker build \
+  --build-context modelcache=/home/kb/comfyui/models \
+  -t ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0-py31115 \
+  flash-imagegen/
+
+# Boot it on the machine that built it, BEFORE it reaches a paid worker. This is
+# the step that caught the Cycle 3 segfault in twenty local minutes instead of a
+# cold start in a crash loop. Note --runtime=nvidia: `--gpus all` is rejected on
+# this box ("invoking the NVIDIA Container Runtime Hook directly ... is not
+# supported").
+docker run -d --name boot-check --runtime=nvidia \
+  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+  -p 8199:8188 \
+  ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0-py31115 \
+  /bin/sh -c 'python3.11 /opt/ComfyUI/main.py --listen 0.0.0.0 --port 8188 --disable-auto-launch'
+
+# Prove it renders what home renders, on home's own card.
+COMFY_URL=http://localhost:8199 ./verify_port.py --book-id pg-41 --plate 0013
+
+docker rm -f boot-check
+
+# Push. Verify no stale push survives FIRST -- by process table and by egress,
+# never by a kill's exit code (FINDINGS.md: a pkill reported success and the
+# process lived; and dockerd, not the client, streams the layers).
+docker login ghcr.io           # PAT with write:packages
+docker push ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0-py31115
+
+# Confirm PRIVATE after every push. The LoRA licence forbids redistribution.
+```
