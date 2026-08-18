@@ -70,6 +70,72 @@ Cycle 3's are live.
 
 ---
 
+## 2026-08-18 — Cycle 5
+
+### Treasure Island: the pre-registered threshold failed, the audit passed, and the threshold was wrong
+
+The showcase book is *Treasure Island*, Project Gutenberg #120, ingested as `pg-120` and
+checked against its source before any GPU time, by the rule Cycle 1 established after
+*Usher* silently lost 48% of its text and reported no warnings. The procedure is now a
+script, `tools/verify_ingest.py`, so the second book is checked the same way as the
+first rather than a similar way. Output kept at `runs/pg-120/ingest-verify.json`.
+
+| Field | Value |
+|---|---|
+| Source words | **68,637** (after Project Gutenberg boilerplate is stripped) |
+| Stored words | **67,813** |
+| **Retention** | **98.80%** |
+| Threshold, set in advance | **99.5%** |
+| **Verdict against the threshold** | **FAIL** |
+| Pages after pagination | 134 |
+| Chapters detected | 34 |
+| Ingest warnings | `[]` |
+| Shortfall | 824 words, reconciling exactly to the enumerated lines |
+
+**The threshold failed and the book was baked anyway. That is a waiver, and it is
+recorded as one.** Moving the number afterwards to make it pass would have been the
+dishonest option and a much easier one.
+
+What the 824 words are, every one of them named and grouped:
+
+| Group | Lines | Words | What it is |
+|---|---:|---:|---|
+| contents | 35 | 564 | the table of contents, dot leaders included |
+| headings | 51 | 80 | the `PART` lines and Roman numerals, now the 34 chapter titles in `structure.json` |
+| other | 31 | 180 | title, byline, the dedication to S.L.O., and the verse *To the Hesitating Purchaser* |
+
+**Not one word of narrative prose is missing.** The stored text opens on the true first
+line of chapter I — `The Old Sea-dog at the Admiral Benbow / Squire Trelawney, Dr.
+Livesey, and the rest of these gentlemen having asked me…` — and closes on the true last
+line of the book, `…the sharp voice of Captain Flint still ringing in my ears: "Pieces of
+eight! Pieces of eight!"`. The 51 heading lines are not lost but relocated. The real loss
+is the 146 words of front matter, of which the verse dedication is the only part a reader
+would miss, and it appears nowhere in the bundle.
+
+As on pg-41, `warnings: []` is the *bad* sign rather than the good one:
+`chapters_undetected` fires only when detection finds nothing and the whole-text
+fallback keeps everything, so its absence means `_chapters_from_headings` ran — the path
+that drops text. Retention is the only thing that says whether that mattered.
+
+**The metric is wrong, and that is the finding.** A retention figure that counts a
+table of contents as body text is measuring the wrong denominator. Treasure Island's
+contents page is 564 words of chapter titles and dot leaders — whitespace tokenizing
+scores `THE BLACK SPOT . . . . . . 24` as nineteen words — and no edition would set it
+as prose. Excluding it, retention is **99.62%**, which clears the threshold that was set.
+
+pg-41 never exposed this because *Sleepy Hollow* has no contents page: the 99.5% figure
+was calibrated on a book that could not exercise the case it fails on. **Fix deferred,
+not applied:** retention should exclude contents pages and front matter from the
+denominator before the next book is judged by it. Changing it in the middle of a book
+it had just failed would have been indistinguishable from moving a goalpost, so it is
+written down instead and left for a cycle with nothing riding on it.
+
+A curiosity in the source, recorded rather than corrected: Gutenberg's own text numbers
+chapter XVIII as `XXVII`. It is a typo in the source and it survives into the chapter
+titles, because ingest reads headings rather than checking their arithmetic.
+
+---
+
 ## 2026-08-18 — Cycle 4
 
 ### The default bake is unchanged by ADR-0036 and ADR-0037, proved three ways
