@@ -1,0 +1,38 @@
+{
+  "endpoint": "cire2u3mv4cr3m",
+  "requested_workers": 1,
+  "warm_before": {
+    "idle": 0,
+    "initializing": 0,
+    "ready": 0,
+    "running": 4,
+    "throttled": 0,
+    "unhealthy": 0
+  },
+  "warm_after": {
+    "idle": 0,
+    "initializing": 0,
+    "ready": 0,
+    "running": 4,
+    "throttled": 0,
+    "unhealthy": 0
+  },
+  "warm_after_count": 4,
+  "elapsed_s": 5.176,
+  "size": 832,
+  "distinct_cards": [
+    "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync"
+  ],
+  "results": [
+    {
+      "worker": 0,
+      "status": "COMPLETED",
+      "wall_s": 5.175,
+      "delayTime_ms": 13,
+      "executionTime_ms": 3541,
+      "model_load_s": 0,
+      "render_s": 2.813,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync"
+    }
+  ]
+}

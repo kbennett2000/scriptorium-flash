@@ -99,7 +99,7 @@ the warm-up removes it.**
 | Rates | $1.10/hr (4090), $0.69/hr (24 GB), $0.58/hr (16 GB) |
 | `pg-41`, 18 renders, all in | **$0.1037042686** |
 | `pg-120`, 91 renders, all in | **$0.4282544446** |
-| Project total | **$0.7356815413** |
+| Project total | **$1.1320333838** |
 
 Ledger and billing history agree to **3×10⁻¹⁰, 3×10⁻¹⁰ and 5×10⁻¹⁰**. Billing history
 lags about a day. Query **all three** categories — a serverless charge posted under
