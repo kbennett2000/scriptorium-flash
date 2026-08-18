@@ -114,6 +114,16 @@ def main() -> int:
     ap.add_argument("--log", type=Path, default=Path("FINDINGS.md"))
     args = ap.parse_args()
 
+    # The defaults are repo-relative, so running this from a subdirectory used to
+    # die with a bare FileNotFoundError traceback. Say what is actually wrong.
+    missing_files = [p for p in [args.log, *args.card] if not p.is_file()]
+    if missing_files:
+        for p in missing_files:
+            print(f"no such file: {p}", file=sys.stderr)
+        print("\nRun this from the repository root -- the default paths are "
+              "relative to it.", file=sys.stderr)
+        return 2
+
     log_numbers = set(numbers(args.log.read_text()))
     print(f"log    {args.log}\n")
 

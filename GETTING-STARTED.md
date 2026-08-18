@@ -214,25 +214,37 @@ needs no credentials.
 
 ### Check what you have, before downloading 11 GB
 
+From the repository root:
+
 ```bash
-cd flash-imagegen
-python3 fetch_models.py --check-only --dest /path/to/your/comfyui/models
+python3 flash-imagegen/fetch_models.py --check-only \
+    --dest /path/to/your/comfyui/models
 ```
 
-Free, and it is the difference between a short build and an 11 GB download. If
-you already run ComfyUI locally, point `--dest` at its models directory.
+If you already run ComfyUI locally, point `--dest` at its models directory and
+this is the difference between a short build and an 11 GB download.
+
+**If you do not, expect all five to report `missing` and the command to exit 1.
+That is the correct result, not an error** — it is telling you the build will
+fetch everything from source. Nothing is wrong.
 
 ### Build
 
+Also from the repository root:
+
 ```bash
 # --build-context replaces the empty `modelcache` stage with a local ComfyUI
-# models directory. Without it, every file is fetched from HuggingFace instead.
-# Point it at YOUR models directory.
+# models directory, so files you already have are copied instead of downloaded.
+# Point it at YOUR models directory. Without it, every file is fetched from
+# HuggingFace -- which also works, and takes about 11 GB longer.
 docker build \
   --build-context modelcache=/path/to/your/comfyui/models \
   -t <your-registry>/scriptorium-imagegen:sdxl-base-1.0-py31115 \
   flash-imagegen/
 ```
+
+The copied files go through the identical size and SHA256 check, so the cache
+changes how long the build takes and nothing about what ends up in the image.
 
 Then boot it locally **before** it reaches a paid worker. That step caught a
 segfault in twenty local minutes instead of as a cold start in a crash loop —
@@ -296,6 +308,7 @@ they will run for you.
 | `export_static_reader.py`, `serve_static_mirror.py` | the server's `resolve_reader_files`, and a built reader bundle |
 | `verify_reader.mjs` | Playwright, imported from the reader repo by absolute path |
 | `public_endpoint_probe.py` | the text-transform service's prompt-building source |
+| `flash-imagegen/verify_port.py` | `~/scriptorium-data/library`, to compare renders against home's stored plates |
 
 **What `localhost:8720` is:** Scriptorium's own orchestrator — the "bakery". It
 owns the job state machine, the artifacts on disk and the human review gates. It

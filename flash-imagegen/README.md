@@ -44,6 +44,12 @@ Pixels rather than bytes, because ComfyUI embeds the prompt graph in the PNG
 metadata and byte equality would fail on key ordering while proving nothing about
 the computation.
 
+**This check does not run in a fresh clone.** It compares against plates the home
+bakery already rendered, and reads them from `~/scriptorium-data/library` — the
+private Scriptorium data directory, which is not distributed. The check is here
+so the claim can be audited, not so it can be re-run by a reader. Its results are
+in [../FINDINGS.md](../FINDINGS.md).
+
 **It failed the first time, and that is the point of having it.** The initial port
 *set* the negative prompt on node 7. imagegen-service *appends* it — the template
 carries a baseline `blurry, lowres, deformed, text, watermark` and the caller's
@@ -149,10 +155,19 @@ endpoint is exposed.
 Recorded here because Cycle 3 did not write these down, and the deadsnakes rebuild
 had to reconstruct them from the Dockerfile's comments.
 
+**These are the commands as they ran on my machine, paths and all** — they are a
+record of what was done, not a template. Two things in them are mine and must be
+replaced: `/home/kb/comfyui/models` is wherever *your* ComfyUI models live, and
+`ghcr.io/kbennett2000/...` is a private registry you cannot push to. See
+[../GETTING-STARTED.md](../GETTING-STARTED.md) for the parameterised form and for
+why the image has to be private.
+
+Run from the repository root:
+
 ```bash
 # Verify the local model cache first -- free, and it is the difference between a
 # 12-minute build and an 11 GB download.
-python3 fetch_models.py --check-only --dest /home/kb/comfyui/models
+python3 flash-imagegen/fetch_models.py --check-only --dest /home/kb/comfyui/models
 
 # Build. --build-context replaces the empty `modelcache` stage with the local
 # ComfyUI models dir; without it every file is fetched from HuggingFace instead.
@@ -173,7 +188,7 @@ docker run -d --name boot-check --runtime=nvidia \
   /bin/sh -c 'python3.11 /opt/ComfyUI/main.py --listen 0.0.0.0 --port 8188 --disable-auto-launch'
 
 # Prove it renders what home renders, on home's own card.
-COMFY_URL=http://localhost:8199 ./verify_port.py --book-id pg-41 --plate 0013
+COMFY_URL=http://localhost:8199 python3 flash-imagegen/verify_port.py --book-id pg-41 --plate 0013
 
 docker rm -f boot-check
 
