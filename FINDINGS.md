@@ -134,6 +134,47 @@ A curiosity in the source, recorded rather than corrected: Gutenberg's own text 
 chapter XVIII as `XXVII`. It is a typo in the source and it survives into the chapter
 titles, because ingest reads headings rather than checking their arithmetic.
 
+### The home baseline assumes an uncontended GPU, and 388.63 s was measured on a quiet machine
+
+The showcase bake stalled mid-way through its prompt phase, and the cause is worth more
+than the delay was. `illustration-prompt` calls went from pg-41's **2.523 s** median to
+**26–155 s**, a 10–60× collapse, with no change to the model, the prompt, or the code.
+
+The machine explains it exactly. The home RTX 5070 has 12,227 MiB. Another user of the
+same desktop was rendering through the shared local ComfyUI, which held **9,312 MiB** of
+it. Squeezed into what was left, ollama kept **0.13 GB of `qwen3.5:9b`'s 6.19 GB** in
+VRAM and ran the other 98% on the CPU:
+
+```
+$ curl -s localhost:11434/api/ps
+qwen3.5:9b   size_vram=0.13GB   size=6.19GB
+```
+
+Once the other session ended and the model was unloaded so it would reload with room to
+land, `size_vram` came back as **5.30 GB of 5.30 GB** and latency returned to
+**1.9–2.8 s** — a 37× recovery, measured across the same transform on the same book
+minutes apart.
+
+**Two things follow, and both belong in the log.**
+
+The first is a caveat this file owes its own headline. **The 388.63 s home baseline was
+measured on a quiet machine**, with the whole card available to the text model. It is a
+fair number and it is the right comparison, but it is a *best-case* home number, not a
+typical one. A home bakery on a desktop somebody also uses will not reproduce it, and
+nothing in the baseline says so until now.
+
+The second is an argument for the rented card that this project had not thought to make.
+The 4090 on Runpod is not competing with a browser, an editor, or somebody else's image
+generation. Its 24 GB is not shared with whatever else the machine is doing. The talk has
+been framing serverless GPU as *faster silicon plus fan-out*; **isolation is a third
+thing, and on this evidence it is worth more than either** — 37× on the text steps
+against 1.59× on the renders. It is also the one an audience running models on their own
+desktops will recognize immediately.
+
+Recorded rather than acted on: nothing was changed about how the bakery manages VRAM,
+and no measurement in this file was re-run. The stall cost no money — the endpoint was
+provisioned throughout with four standby workers and the balance did not move.
+
 ---
 
 ## 2026-08-18 — Cycle 4
