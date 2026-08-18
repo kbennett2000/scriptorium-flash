@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -43,7 +44,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import graph as G  # noqa: E402
 
-COMFY = "http://localhost:8188"
+# Overridable so the same check can be pointed at a ComfyUI running inside the
+# container image, on the same card. That is the sharpest test available for
+# free: same silicon, same seed, same graph -- so any difference left is the
+# container's, and there is nowhere for silicon to hide.
+COMFY = os.environ.get("COMFY_URL", "http://localhost:8188")
 LIBRARY = Path("/home/kb/scriptorium-data/library")
 
 
