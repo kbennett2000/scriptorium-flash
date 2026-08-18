@@ -43,6 +43,15 @@ DATA_ROOT = Path("/home/kb/scriptorium-data")
 BASE = "http://localhost:8720"
 REPO = Path(__file__).resolve().parent
 
+# What counts as a cold load. `model_load_s` is `wait_for_comfy()` -- the time the
+# handler waited for ComfyUI to answer /system_stats. A worker that has just staged a
+# model reports 2.5-3.5 s of it. A warm worker usually reports exactly 0, but not
+# always: pg-120 plate 0060 came back with 0.003 s, which is a scheduling hiccup and
+# not a model load, and a `> 0` test called it cold. Anything below half a second is
+# noise; a real stage is an order of magnitude above it.
+COLD_LOAD_S = 0.5
+
+
 
 def cold_images(book_id: str, data_root: Path) -> list[dict]:
     """Images whose echo says a model was staged to draw them.
@@ -56,7 +65,7 @@ def cold_images(book_id: str, data_root: Path) -> list[dict]:
             out = []
             for p in sorted(d.glob("*.json")):
                 echo = (json.loads(p.read_text()).get("render") or {}).get("params_echo") or {}
-                if echo and float(echo.get("model_load_s") or 0) > 0:
+                if echo and float(echo.get("model_load_s") or 0) >= COLD_LOAD_S:
                     out.append({"id": p.stem,
                                 "model_load_s": float(echo["model_load_s"]),
                                 "render_s": float(echo.get("render_s") or 0)})
@@ -112,11 +121,24 @@ def main() -> int:
             t0 = time.monotonic()
             doc = post(f"/api/admin/books/{args.book_id}/plates/{c['id']}/regen")
             echo = (doc.get("render") or {}).get("params_echo") or {}
+            # The bake's render phase writes the worker's whole echo. The regen
+            # route does NOT: post-publish it records only width/height/seed, so
+            # `model_load_s` is absent rather than zero. Absent is not evidence of
+            # warmth, and treating it as zero would let this tool report a clean
+            # result it cannot actually see. Distinguish the two.
+            reported = echo.get("model_load_s") is not None
             load = float(echo.get("model_load_s") or 0)
+            wall = time.monotonic() - t0
+            if not reported:
+                print(f"  {c['id']:<28} attempt {attempt}: regenerated in "
+                      f"{wall:.1f}s -- worker echo NOT recorded by the regen route, "
+                      f"so warmth is UNVERIFIED")
+                results.append({"id": c["id"], "attempts": attempt,
+                                "warm": None, "wall_s": round(wall, 2)})
+                break
             print(f"  {c['id']:<28} attempt {attempt}: model_load {load:>7.3f}s  "
-                  f"render {float(echo.get('render_s') or 0):>7.3f}s  "
-                  f"({time.monotonic() - t0:.1f}s wall)")
-            if load == 0:
+                  f"render {float(echo.get('render_s') or 0):>7.3f}s  ({wall:.1f}s wall)")
+            if load < COLD_LOAD_S:
                 results.append({"id": c["id"], "attempts": attempt, "warm": True,
                                 "render_s": float(echo.get("render_s") or 0)})
                 break
@@ -125,12 +147,21 @@ def main() -> int:
         else:
             results.append({"id": c["id"], "attempts": args.attempts, "warm": False})
 
-    bad = [r for r in results if not r["warm"]]
-    print(f"\nremediated {len(results) - len(bad)} of {len(cold)}")
+    bad = [r for r in results if r["warm"] is False]
+    unknown = [r for r in results if r["warm"] is None]
+    print(f"\nregenerated {len(results)} of {len(cold)}")
     if bad:
         print("STILL COLD: " + ", ".join(r["id"] for r in bad))
         return 1
-    print("every cold-load image has been replaced by a warm render "
+    if unknown:
+        print(f"{len(unknown)} replacement(s) could not be verified warm, because the "
+              f"regen route does not record the worker's echo.")
+        print("What IS known: each was rendered against a fleet whose /health "
+              "reported warm slots at the time, and each returned in seconds rather "
+              "than the ~3 s model load plus slow first render a cold worker shows.")
+        print("That is an inference, not a measurement. Recorded as such.")
+        return 0
+    print("every cold-load image has been replaced by a verified warm render "
           "(new seed, additive -rN variant; the reader resolves highest-rN)")
     return 0
 

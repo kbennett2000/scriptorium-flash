@@ -28,6 +28,15 @@ from pathlib import Path
 
 DATA_ROOT = Path("/home/kb/scriptorium-data")
 
+# What counts as a cold load. `model_load_s` is `wait_for_comfy()` -- the time the
+# handler waited for ComfyUI to answer /system_stats. A worker that has just staged a
+# model reports 2.5-3.5 s of it. A warm worker usually reports exactly 0, but not
+# always: pg-120 plate 0060 came back with 0.003 s, which is a scheduling hiccup and
+# not a model load, and a `> 0` test called it cold. Anything below half a second is
+# noise; a real stage is an order of magnitude above it.
+COLD_LOAD_S = 0.5
+
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -36,9 +45,17 @@ def main() -> int:
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    prompts = sorted((args.data_root / "work" / args.book_id / "prompts").glob("*.json"))
-    if not prompts:
-        raise SystemExit(f"no prompt docs under work/{args.book_id}/prompts")
+    # Prefer the published bundle: the question is whether a cold-load image
+    # *ships*, and after a post-publish regen the work tree still holds the
+    # original echo while library/ holds the replacement. Fall back to work/ for
+    # a bake that has not published yet.
+    for sub in ("library", "work"):
+        d = args.data_root / sub / args.book_id / "prompts"
+        if d.is_dir():
+            source, prompts = sub, sorted(d.glob("*.json"))
+            break
+    else:
+        raise SystemExit(f"no prompt docs for {args.book_id}")
 
     rows = []
     for p in prompts:
@@ -55,8 +72,8 @@ def main() -> int:
             "attempts": render.get("attempts"),
         })
 
-    cold = [r for r in rows if r["model_load_s"] > 0]
-    warm = [r for r in rows if r["model_load_s"] == 0]
+    cold = [r for r in rows if r["model_load_s"] >= COLD_LOAD_S]
+    warm = [r for r in rows if r["model_load_s"] < COLD_LOAD_S]
 
     if args.json:
         print(json.dumps({"rendered": len(rows), "cold_load": cold,
@@ -65,7 +82,7 @@ def main() -> int:
                          indent=2))
         return 1 if cold else 0
 
-    print(f"book            {args.book_id}")
+    print(f"book            {args.book_id}  (reading {source}/)")
     print(f"rendered        {len(rows)} images")
     if warm:
         print(f"warm median     {statistics.median([r['render_s'] for r in warm]):.4f} s "
