@@ -117,6 +117,48 @@ Nine of nine. **The home-side numbers in this file are safe to cite.**
 Free: 16 prompt replays and 13 local renders, all on the home RTX 5070. No
 Runpod resource was touched.
 
+### Five issues filed, on three repositories
+
+Kris approved drafts 1–5. All five are now filed; draft 6 is held back by
+decision and stays a recorded finding.
+
+| Issue | Subject | Repository |
+|---|---|---|
+| **[runpod/flash#364](https://github.com/runpod/flash/issues/364)** | `Endpoint(workers=(0, N))` deploys `workersStandby: 1` | `runpod/flash` |
+| **[runpod/flash#365](https://github.com/runpod/flash/issues/365)** | `flash deploy` reports success for a client-mode app but provisions no endpoint | `runpod/flash` |
+| **[runpod/flash#366](https://github.com/runpod/flash/issues/366)** | A list of `GpuType`s does not constrain placement; a single `GpuType` does | `runpod/flash` |
+| **[runpod/docs#800](https://github.com/runpod/docs/issues/800)** | `PodTemplate.containerRegistryAuthId` is required for private images and is documented nowhere | `runpod/docs` |
+| **[runpod/runpodctl#327](https://github.com/runpod/runpodctl/issues/327)** | `runpodctl registry create` accepts a registry password only as a command-line flag | `runpod/runpodctl` |
+
+Each was filed with `gh issue create --repo <org/repo> --title <t> --body-file <f>`.
+The command is recorded because Cycle 3 filed `runpod/flash#363` and did not
+write down how, which left a hole in an otherwise reproducible record.
+
+Fifteen duplicate searches were run across the three repositories before filing
+— three per draft, terms recorded beside each draft in AI-ASSIST.md — and none
+returned a hit.
+
+Draft 4 went to `runpod/docs` rather than `runpod/flash` deliberately: the field
+works correctly, so the defect is entirely documentary. Draft 5 went to
+`runpod/runpodctl`, which is a third repository this project had not filed
+against before.
+
+**What changed between draft and filing.** Draft 1 went out unchanged — it was
+written after its measurement and was already complete. The other four gained an
+exact versions block, and three gained evidence that did not exist when they were
+drafted: draft 2 the live build manifest, draft 3 both endpoint ids and the 2.8×
+render-time gap that makes the substitution cost something, draft 4 the
+confirmation that two endpoints have since pulled a private image using the
+undocumented field. Draft 5 gained `docker login`'s own warning text as the
+precedent it is asking Runpod to match.
+
+Three older annotations were corrected in the same pass. AI-ASSIST.md's billing
+section still said "nothing has been filed" when Gap 1 had gone out as
+`runpod/docs#798` in Cycle 3; Gap 3 still read as live after being killed; and
+Gap 2 still asked whether image-pull time is billed, which Cycle 3 answered
+(775 s of pull across two passes, none of it billed). All three are annotated in
+place rather than rewritten.
+
 ### The multi-figure plates were never a silicon result, and Cycle 3's claim is corrected here
 
 The nine-plate sweep above only reads that way after a defect was found in our

@@ -29,6 +29,9 @@ had to be worked around to get them, and all three fail quietly.
 
 ### `flash deploy` does not deploy a client-mode endpoint
 
+**FILED 2026-08-18 as [runpod/flash#365](https://github.com/runpod/flash/issues/365).** The draft below was tightened before filing: a versions block was added, the prose reproduction became four numbered steps, and the live build manifest was pasted in (`generated_at 2026-08-18T01:50:30.695000Z`, `"resources": {}`). The filed text also names `_ensure_endpoint_ready()` as the real provisioning path, since a report that only says "nothing happened" is weaker than one that says what does happen instead.
+Duplicate search: `flash deploy no endpoint`, `client mode image endpoint not created`, `deployed to production no resources`. No hits.
+
 The `flash-imagegen` app is Mode 3 in the skill's own taxonomy — `image=` set, a
 pre-built container, no decorated functions. `flash deploy` on it prints:
 
@@ -108,6 +111,9 @@ turns out to hold state that outlives the resources it describes.
 
 ### `gpuTypeIds` is advisory when it is a list
 
+**FILED 2026-08-18 as [runpod/flash#366](https://github.com/runpod/flash/issues/366).** Added before filing: a versions block, the `gpuTypeIds` readback JSON, both endpoint ids (`ugculdhag081uh`, `h4rz8tmjkq35fu`), and the 2.8x render-time gap between the two cards -- the reason the substitution costs something rather than merely being untidy.
+Duplicate search: `gpuTypeIds`, `GpuType list placement`, `wrong GPU type assigned`. No hits.
+
 The 24 GB pass asked for two specific cards. The endpoint read them back
 correctly. Every render ran on a third card that was on neither list — an
 `RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb`.
@@ -160,6 +166,9 @@ written down together, and one essential field is not written down at all.
 
 ### The field that makes it work is undocumented
 
+**FILED 2026-08-18 as [runpod/docs#800](https://github.com/runpod/docs/issues/800).** Filed against `runpod/docs` rather than `runpod/flash`: the field works correctly, so the defect is entirely in the documentation. Added before filing: a versions block and the confirmation that two endpoints have now pulled a private GHCR image using it with a `read:packages`-scoped token -- the draft was written before that was known.
+Duplicate search, over `runpod/docs` and `runpod/flash`: `containerRegistryAuthId`, `private image registry auth flash`, `PodTemplate reference`. No hits.
+
 A private image needs Runpod to hold a registry credential, and the endpoint
 needs to reference it. `docs.runpod.io/flash/custom-docker-images` says only:
 
@@ -196,6 +205,9 @@ This is a **draft issue**, unfiled, pending Kris's approval:
 
 ### `runpodctl registry create` has only one way in, and it is the wrong one
 
+**FILED 2026-08-18 as [runpod/runpodctl#327](https://github.com/runpod/runpodctl/issues/327).** Added before filing: the runpodctl version, `docker login`'s own warning text as the precedent, and the note that this project needed exactly this credential and used the console instead -- which is the concrete impact rather than a hypothetical one.
+Duplicate search: `registry create password`, `password-stdin`, `credential shell history`. No hits.
+
 ```
 Flags:
       --name string       registry auth name (required)
@@ -225,6 +237,8 @@ stores is scoped `read:packages` only, so a leak of Runpod's copy cannot publish
 > `--password` is used.
 
 ### `flash build` imports every `.py` in the directory, and `.gitignore` is the only way out
+
+**NOT FILED, by decision.** Kris approved drafts 1-5 and held this one back. It stays here as a recorded finding with its draft text intact. The workaround -- deferring the numpy and PIL imports into `main()` -- is still in `verify_port.py` and still load-bearing.
 
 `flash build` failed on an app it should not have cared about:
 
@@ -415,6 +429,9 @@ Friction from the first real deployment. The numbers are in
 [FINDINGS.md](FINDINGS.md); this is what the tooling did around them.
 
 ### The one that costs money: `runpodctl` cannot see the setting that bills
+
+**FILED 2026-08-18 as [runpod/flash#364](https://github.com/runpod/flash/issues/364).** The draft below went out unchanged: its versions and reproduction were already exact.
+Duplicate search before filing, over `runpod/flash` and `runpod/docs`: `workersStandby`, `standby worker scale to zero`, `workers min max standby`. No hits.
 
 `flash`'s `Endpoint(workers=(0, 1))` deploys `workersStandby: 1`. That field is
 what the console calls an **active worker**, and Runpod's own configuration page
@@ -670,9 +687,13 @@ first. The answer itself is in [FINDINGS.md](FINDINGS.md). What follows is what
 the documentation did to get there.
 
 Three gaps, in descending order of how much money a reader could lose to them.
-Draft issue text for each; **nothing has been filed.**
+Draft issue text for each.
+
+> **Status corrected 2026-08-18.** This line used to read "nothing has been filed" and was already wrong when Gap 1 went out as `runpod/docs#798` during Cycle 3. Gap 1 is filed, Gap 2 is answered by measurement and not worth filing as written, and Gap 3 was killed. Each is annotated in place below.
 
 ### Gap 1 — the serverless pricing page never says container disk needs a worker
+
+**FILED 2026-08-17 as [runpod/docs#798](https://github.com/runpod/docs/issues/798).** The draft below is kept verbatim as the record of what was drafted.
 
 `docs.runpod.io/serverless/pricing` lists three cost components. One of them is:
 
@@ -712,6 +733,10 @@ cost." Not a separate meter at all.
 
 ### Gap 2 — model download time is exempted from billing, image pull is not addressed
 
+**ANSWERED BY MEASUREMENT 2026-08-18, not filed as written.** Cycle 3 settled the question empirically: **image pull is not billed.** Two cold starts spent 775 seconds pulling a 17.66 GB image (360.2 s and 414.9 s of `delayTime`) and none of it appears in billed time -- 196.7 s and 143.7 s billed against 108.7 s and 49.5 s of execution, with the difference accounted for by the deliberate 90-second idle windows. See FINDINGS.md, *What is billed: the pull is free, the idle tail is not*.
+
+The documentation gap is real and still worth reporting, but the draft below asks a question this project can now answer, which makes it the wrong text to send. A filed version should say "document that image pull is unbilled" and cite the measurement, rather than asking whether it is. That is new text, not the approved draft, so it goes to Kris first.
+
 `serverless/endpoints/model-caching` is explicit and welcome: "You aren't billed
 for worker time while your model is being downloaded", and it holds even on a
 cache miss.
@@ -739,6 +764,10 @@ start, so this is not a rounding question.
 > three billable phases.
 
 ### Gap 3 — the skills contradict themselves on whether a warm worker bills
+
+**KILLED 2026-08-17. Do not file the draft below.** The measurement contradicted it: both pages are partly right, and the real answer is a distinction neither draws -- a warm worker *inside `idle_timeout` after a request* bills, and a warm *standby* worker with no traffic does not. The flat assertion further down that `15-monitor-and-debug.md:73` "is wrong" is itself wrong, and is left standing only as the record of what was concluded from documentation alone. See FINDINGS.md, *Draft issue 3 is killed, and the misreading is the finding*.
+
+What could honestly be filed instead -- that both pages use `idle`/`ready` for two states that bill differently, and that the health API reports the billing one as `running` -- is new text rather than the approved draft, so it goes to Kris rather than to a repository.
 
 This one is not a gap but a straight conflict, which is worse: one of the two is
 simply wrong, and a reader has no way to tell which.
