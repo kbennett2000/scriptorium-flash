@@ -1,0 +1,272 @@
+{
+  "tier": "A5000-3090-24GB",
+  "endpoint": "ugculdhag081uh",
+  "started_utc": "2026-08-18T01:53:02Z",
+  "cold": {
+    "plate": "0001",
+    "kind": "COLD",
+    "reference_slug": null,
+    "wall_s": 387.273,
+    "status": "COMPLETED",
+    "delayTime_ms": 360207,
+    "executionTime_ms": 25592,
+    "model_load_s": 1.509,
+    "render_s": 23.646,
+    "total_s": 25.162,
+    "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+    "ip_adapter": false,
+    "fidelity": {
+      "compared": true,
+      "identical": false,
+      "differing_pixels": 805621,
+      "total_pixels": 1011712,
+      "max_abs": 214
+    }
+  },
+  "warm_render_s_sorted": [
+    9.457,
+    9.909,
+    11.493,
+    12.381,
+    15.586,
+    15.916
+  ],
+  "warm_render_median_s": 12.381,
+  "warm_n": 6,
+  "idle_window_s": 90.0,
+  "idle_worker_states": [
+    {
+      "t": 0.2,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 10.3,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 20.5,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 30.6,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 40.9,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 51.1,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 61.2,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 71.4,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 81.6,
+      "idle": 1,
+      "initializing": 0,
+      "ready": 1,
+      "running": 0,
+      "throttled": 0,
+      "unhealthy": 0
+    }
+  ],
+  "balance_before": 49.90411277,
+  "balance_after_settled": 49.8922540209,
+  "cost_usd": 0.0118587491,
+  "results": [
+    {
+      "plate": "0001",
+      "kind": "COLD",
+      "reference_slug": null,
+      "wall_s": 387.273,
+      "status": "COMPLETED",
+      "delayTime_ms": 360207,
+      "executionTime_ms": 25592,
+      "model_load_s": 1.509,
+      "render_s": 23.646,
+      "total_s": 25.162,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": false,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 805621,
+        "total_pixels": 1011712,
+        "max_abs": 214
+      }
+    },
+    {
+      "plate": "0003",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 18.994,
+      "status": "COMPLETED",
+      "delayTime_ms": 52,
+      "executionTime_ms": 16821,
+      "model_load_s": 0,
+      "render_s": 15.916,
+      "total_s": 15.932,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 655998,
+        "total_pixels": 1011712,
+        "max_abs": 140
+      }
+    },
+    {
+      "plate": "0006",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 12.346,
+      "status": "COMPLETED",
+      "delayTime_ms": 34,
+      "executionTime_ms": 10660,
+      "model_load_s": 0,
+      "render_s": 9.457,
+      "total_s": 9.466,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 569276,
+        "total_pixels": 1011712,
+        "max_abs": 168
+      }
+    },
+    {
+      "plate": "0008",
+      "kind": "warm",
+      "reference_slug": "brom-bones",
+      "wall_s": 20.852,
+      "status": "COMPLETED",
+      "delayTime_ms": 51,
+      "executionTime_ms": 18877,
+      "model_load_s": 0,
+      "render_s": 15.586,
+      "total_s": 15.598,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 993663,
+        "total_pixels": 1011712,
+        "max_abs": 170
+      }
+    },
+    {
+      "plate": "0011",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 14.327,
+      "status": "COMPLETED",
+      "delayTime_ms": 35,
+      "executionTime_ms": 12524,
+      "model_load_s": 0,
+      "render_s": 11.493,
+      "total_s": 11.512,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 988310,
+        "total_pixels": 1011712,
+        "max_abs": 168
+      }
+    },
+    {
+      "plate": "0013",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 13.179,
+      "status": "COMPLETED",
+      "delayTime_ms": 39,
+      "executionTime_ms": 10789,
+      "model_load_s": 0,
+      "render_s": 9.909,
+      "total_s": 9.918,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 988691,
+        "total_pixels": 1011712,
+        "max_abs": 175
+      }
+    },
+    {
+      "plate": "0015",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 15.356,
+      "status": "COMPLETED",
+      "delayTime_ms": 30,
+      "executionTime_ms": 13471,
+      "model_load_s": 0,
+      "render_s": 12.381,
+      "total_s": 12.393,
+      "gpu": "cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 515944,
+        "total_pixels": 1011712,
+        "max_abs": 71
+      }
+    }
+  ]
+}

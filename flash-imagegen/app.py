@@ -35,18 +35,17 @@ IMAGE = "ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0"
 # manifest, which is how it was found. See AI-ASSIST.md.
 REGISTRY_AUTH_ID = os.environ["RUNPOD_REGISTRY_AUTH_ID"]
 
-# The 24GB tier by card rather than by GpuGroup.AMPERE_24.
+# Cycle 3 task 6: the 24GB PRO tier, pinned to one exact card.
 #
-# That group is L4 / A5000 / RTX 3090 / MIG-24, and GpuGroup takes the cheapest
-# card available. An L4 is a very different machine from home's RTX 5070 for
-# SDXL, so drawing one would make the headline per-plate number a story about
-# card selection rather than about Runpod. Naming two comparable cards keeps the
-# comparison honest and still leaves two sources of supply, which matters --
-# every 24GB card currently reports stockStatus "Low".
+# Task 5 asked for AMPERE_24 by naming two cards -- A5000 and RTX 3090 -- and
+# the endpoint read back exactly those two. Runpod then ran every render on an
+# "RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb", which is neither. So a
+# two-card gpuTypeIds list did not constrain placement.
 #
-# The handler reports which card actually ran, read from ComfyUI's
-# /system_stats, and FINDINGS.md quotes it beside the timing.
-TIER = [GpuType.NVIDIA_RTX_A5000, GpuType.NVIDIA_GEFORCE_RTX_3090]
+# This pass pins a single GpuType to find out whether one exact card is honoured
+# when a list was not. If it is substituted too, the constraint is advisory at
+# every level, which is the more important finding of the two.
+TIER = GpuType.NVIDIA_GEFORCE_RTX_4090
 
 imagegen = Endpoint(
     name="scriptorium-imagegen",

@@ -3,7 +3,7 @@
 Moving the AI steps of a working app onto Runpod, and writing down what it
 actually cost and how long it actually took.
 
-Status: **in progress.** Cycle 1 of several.
+Status: **in progress.** Cycle 3 of several — the first cycle with real Runpod numbers in it.
 
 ## What this is
 
@@ -29,9 +29,10 @@ platform and talk about it for 20 minutes. The talk cites this repo.
 | [FINDINGS.md](FINDINGS.md) | **Every number this project produces.** Timings, costs, cold starts. Dated. |
 | [AI-ASSIST.md](AI-ASSIST.md) | How Runpod's own AI tooling performed — what it got right, what it got wrong. |
 | [docs/adr/](docs/adr/) | Architecture decision records. Start at [0001](docs/adr/0001-architecture.md). |
-| `hello-flash/` | The smallest Flash app that deploys and answers one request. |
-| [flash-imagegen/](flash-imagegen/) | The production plate renderer. Reproduces the home render stack exactly — verified pixel-identical. Built, not deployed. |
-| `tools/` | Measurement scripts. They read logs; they change nothing. |
+| `hello-flash/` | The smallest Flash app that deploys and answers one request. Deployed and measured. |
+| [flash-imagegen/](flash-imagegen/) | The production plate renderer. Built, pushed private, and measured on two Runpod GPU tiers. |
+| `tools/` | Measurement scripts, and the small HTTP client that reads its own credential file rather than exporting a key. |
+| `runs/` | The raw evidence behind the numbers — timings, model responses, rendered plates. |
 
 ## The one rule about numbers
 
