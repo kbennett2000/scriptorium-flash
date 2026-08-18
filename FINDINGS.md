@@ -437,6 +437,46 @@ image — the containerd store counts the manifest and the unpacked snapshot
 separately. `docker image inspect` reports 17.66 GB, and the layer sum is
 24.07 GB uncompressed. Three numbers for one image; the middle one is the image.
 
+### Pushing 17.66 GB to a private registry took four hours
+
+| | |
+|---|---|
+| Registry | `ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0`, **private** |
+| Pushed | 2026-08-17T21:24:06Z → 2026-08-18T01:20:59Z |
+| **Wall clock** | **3 h 56 m 53 s** |
+| Digest | `sha256:7df38e537f6c8a8f1830ef917b8e316985507dac84deaf882e86febc16185cda` |
+| Visibility, checked after | **`private`** |
+
+The digest is the fixed image, not the first one — the segfaulting build was
+`sha256:b057b3530d98…` and never became the tag.
+
+**Two things made this slow, and only one of them was the network.** Home upload
+measured **20.5 Mbit/s**, which puts a ~13 GB compressed push at 85–105 minutes
+on its own. It took nearly four hours because a stale push of the earlier image
+ran concurrently for three of them, uploading the same blobs and halving the
+available bandwidth.
+
+That was avoidable and it was our error: `pkill -f "docker push"` reported
+success, and the process survived. Snap's confinement denies signals to the
+docker client even from the user that owns it —
+
+```
+$ kill -9 622468
+kill: (622468) - Permission denied     # process owner is kb; so is the shell
+```
+
+— and the client is not doing the upload anyway. `/proc/<pid>/io` for the client
+shows **0.03 GB read and 0 written** across the whole push: `dockerd` streams the
+layers, so killing the client would not have stopped the transfer regardless. The
+lesson is the general one — a kill that prints nothing is not a kill that worked.
+
+**Registry credentials, and what Runpod was given.** Runpod pulls a private image
+using a stored credential, created in the console rather than with
+`runpodctl registry create`, whose only interface puts a registry password in the
+process table and the shell history. The token Runpod holds is scoped
+**`read:packages` only**, so a compromise of Runpod's copy cannot publish
+anything. This project read back only the credential id, which is not a secret.
+
 ### The container segfaulted on boot, and a free local test caught it
 
 **The first build could not run at all.** Started locally on the home GPU, it
