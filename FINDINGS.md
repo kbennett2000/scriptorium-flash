@@ -410,6 +410,60 @@ pixel verification of anything fp16 is free and adds perhaps 10 minutes.
 a wall-clock question against the days remaining before the talk, not a money
 question — the push itself is free.
 
+**Decision: no rebuild, no re-push. The cut is post-talk work.** Kris's call, taken
+against the table above rather than around it, and it is the right one for a reason
+worth stating: the diet buys a *shorter* version of a problem the warm-up procedure
+already removes entirely. Sending one warm-up render ten to fifteen minutes before
+speaking takes the cold start off the stage clock completely, and costs nothing. Four
+hours of build and push, immediately before a talk, to turn an 8.2-minute wait the
+audience never sees into a 5.9-minute wait they also never see, is effort spent on the
+wrong end of the problem.
+
+So the table stands as a measured, costed finding rather than as work done. Two things
+make it worth having anyway. It corrects the 42 GB figure this file had been reasoning
+from. And it establishes, with `ldd` rather than with argument, that the image ships a
+CUDA stack PyTorch never opens — which is the kind of thing that is much easier to fix
+when it is written down before someone needs it than discovered again later.
+
+What a later cycle should pick up first: the base-image change alone, 2.76 GB and 74.5 s
+of the total, carries no fidelity risk at all and needs no pixel test to justify it.
+The two fp16 candidates should stay parked until someone wants them enough to run
+`verify_port.py` against them.
+
+### Vercel's deployment protection gates the deployment URL, not the production alias
+
+The reader had to be reachable without a login for it to work as a stage fallback, and
+the first deploy answered **302** on every route. The cause is Vercel Deployment
+Protection, which is on by default for this account: `ssoProtection.enabled: true`,
+`deploymentType: all_except_custom_domains`. It was turned off for the reader project
+with `vercel project protection disable scriptorium-reader --sso`.
+
+**Scope, checked rather than assumed.** Every project on the account was read back
+afterwards. Only the reader moved:
+
+| Project | `ssoProtection` |
+|---|---|
+| `scriptorium-reader` | `enabled: false` |
+| the other nine | `enabled: true`, `all_except_custom_domains` — the account default |
+
+And the setting is still *enforcing* elsewhere, not merely still reported: a live fetch
+of `airfield-wx-demo-2ti65eppq-…vercel.app` returns **302**.
+
+**The correction, and it changes what the toggle did.** That same project's production
+alias, `airfield-wx-demo.vercel.app`, returns **200** with SSO still enabled. So
+`all_except_custom_domains` gates the immutable *deployment* URLs — the hashed
+`…-<hash>-<team>.vercel.app` ones — and leaves a project's production alias public.
+
+Which means `scriptorium-reader.vercel.app` would have served the demo either way. The
+302 that prompted the change was on the hashed deployment URL, because that is the URL
+`vercel deploy` prints when it finishes. The one thing turning SSO off actually
+accomplished, beyond nothing, is that this project's hashed deployment URLs are now
+public too — this project's only, and it holds a public-domain book and its
+illustrations.
+
+Worth knowing for its own sake: **the URL to demo from is the production alias**, and
+testing the URL the CLI hands you will mislead you about whether a site is reachable.
+
 ---
 
 ## 2026-08-18 — Cycle 4
