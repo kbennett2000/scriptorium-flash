@@ -32,8 +32,13 @@ import time
 import urllib.request
 from pathlib import Path
 
-import numpy as np
-from PIL import Image
+# numpy and PIL are imported inside main() rather than here, and that is not a
+# style preference. `flash build` imports every .py file in the project
+# directory to discover Endpoints, so a module-level import of something absent
+# from the flash CLI's own environment fails the build of an app this file is
+# not even part of. Since v1.4 the only way to exclude a file is to list it in
+# .gitignore, which would mean untracking a checked-in tool. Deferring the
+# import is the smaller change. See AI-ASSIST.md.
 
 sys.path.insert(0, str(Path(__file__).parent))
 import graph as G  # noqa: E402
@@ -97,6 +102,9 @@ def await_image(prompt_id: str, timeout: float = 300.0) -> bytes:
 
 
 def main() -> int:
+    import numpy as np  # deferred: see the note at the top of this file
+    from PIL import Image
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--book-id", default="pg-41")
     ap.add_argument("--plate", default="0001")

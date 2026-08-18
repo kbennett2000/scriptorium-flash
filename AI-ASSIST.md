@@ -22,6 +22,283 @@ Entries below, newest first.
 
 ---
 
+## 2026-08-18 — Deploying and measuring: three silent failures
+
+The render numbers are in [FINDINGS.md](FINDINGS.md). Three things in the tooling
+had to be worked around to get them, and all three fail quietly.
+
+### `flash deploy` does not deploy a client-mode endpoint
+
+The `flash-imagegen` app is Mode 3 in the skill's own taxonomy — `image=` set, a
+pre-built container, no decorated functions. `flash deploy` on it prints:
+
+```
+✓ built flash-imagegen  8 files, 0 deps, 0.2 MB
+No app 'flash-imagegen' found. Creating app and 'production' environment...
+✓ uploaded  0.2 MB  1.5s
+✓ deployed to production  1.5s
+```
+
+Two ticks and the word "deployed". **No endpoint exists.** `runpodctl serverless
+list` shows nothing new, and the app's own environment disagrees with the deploy
+output:
+
+```
+$ flash env get production
+  app     flash-imagegen
+  build   cmsy0a16j000
+  no resources. run flash deploy --env production
+```
+
+The build manifest explains it:
+
+```json
+{ "project_name": "flash-imagegen", "resources": {}, "function_registry": {} }
+```
+
+An `Endpoint` with `image=` and no decorated functions registers **no resources**,
+so the deploy has nothing to provision — and says "deployed to production"
+anyway. Running `flash deploy --env production`, as the message suggests, does
+the same thing again.
+
+Client-mode endpoints provision on first use instead, inside
+`Endpoint._ensure_endpoint_ready()`, which `run()` and `runsync()` call. That is
+consistent with the skill's Mode 3 example, which only ever shows
+`await server.run(...)` and never `flash deploy`. But nothing says the two
+approaches are not interchangeable, and the deploy path reports success rather
+than declining.
+
+Worked around with `tools/provision_client_endpoint.py`, which calls
+`_ensure_endpoint_ready()` directly so provisioning is an explicit, timestamped
+step. Note it depends on a private method, which is its own small warning.
+
+> **Draft issue — Title:** `flash deploy` reports success for a client-mode
+> (`image=`) app but provisions no endpoint
+>
+> An `Endpoint(name=..., image=..., gpu=...)` with no decorated functions
+> produces a build manifest with `"resources": {}`. `flash deploy` uploads the
+> artifact, creates the app and environment, and prints "✓ deployed to
+> production". No serverless endpoint is created. `flash env get <env>` then
+> reports "no resources. run flash deploy --env production", which repeats the
+> same no-op.
+>
+> **Suggestion:** either register the client-mode `Endpoint` as a resource so
+> `flash deploy` provisions it, or detect the empty-resource case and say so —
+> "no deployable resources found; client-mode endpoints provision on first
+> `run()`" — instead of reporting a successful deployment.
+
+### Deleting an endpoint leaves a stale pickle that breaks the next provision
+
+After tearing down the first render endpoint by name and re-provisioning for the
+second tier:
+
+```
+runpod_flash.core.api.runpod._GraphQLErrorResponse: GraphQL errors: Endpoint not found
+```
+
+The cause is `.flash/resources.pkl`, a local cache of provisioned resource ids.
+Deleting the endpoint through `runpodctl serverless delete` and `flash app
+delete` does not clear it, so the SDK keeps trying to reach an endpoint that no
+longer exists. `rm .flash/resources.pkl` fixes it immediately.
+
+Nothing documents `.flash/resources.pkl`, and the error names neither the file
+nor the stale id. Worth noting alongside Cycle 1's observation that `flash`
+writes `.flash/` into whatever directory it is run from — that directory now
+turns out to hold state that outlives the resources it describes.
+
+### `gpuTypeIds` is advisory when it is a list
+
+The 24 GB pass asked for two specific cards. The endpoint read them back
+correctly. Every render ran on a third card that was on neither list — an
+`RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb`.
+
+Pinning a single `GpuType` was honoured. So a list constrains nothing and one
+card constrains placement, and no documentation distinguishes them. The flash
+skill's `reference/api.md` presents `gpu=` as accepting "a `GpuGroup`, a
+`GpuType`, or a list of either" with no hint that the guarantees differ.
+
+**Nothing in the platform reported the substitution.** `runpodctl serverless get`
+does not report the running card, and the job response does not either. It was
+visible only because the handler reads ComfyUI's `/system_stats` and puts the
+device name in its output — a defect fix made earlier this cycle for exactly this
+reason, after `NVIDIA_VISIBLE_DEVICES` came back as the literal string `void` on
+the hello-world worker.
+
+> **Draft issue — Title:** A list of `GpuType`s in `gpu=` does not constrain
+> placement; a single `GpuType` does
+>
+> `Endpoint(gpu=[GpuType.NVIDIA_RTX_A5000, GpuType.NVIDIA_GEFORCE_RTX_3090])`
+> creates an endpoint whose `gpuTypeIds` reads back as exactly those two cards.
+> Workers were nonetheless placed on `NVIDIA RTX PRO 6000 Blackwell Server
+> Edition MIG 1g.24gb`, which is in the same VRAM tier but on neither list, for
+> all seven requests.
+>
+> The same app with `gpu=GpuType.NVIDIA_GEFORCE_RTX_4090` ran every request on a
+> 4090.
+>
+> Two problems: the list form appears to be advisory while the single form is
+> binding, and neither the docs nor `reference/api.md` distinguishes them; and
+> nothing in the API reports which card a worker is actually running, so the
+> substitution is invisible without instrumenting the container.
+>
+> **Suggestion:** document the difference, and expose the placed GPU type on the
+> worker or job record.
+
+### Credit where due
+
+`delayTime` and `executionTime` on the job record are genuinely useful and made
+the billing reconciliation possible: separating them is what showed that a
+360-second image pull is not billed while a 90-second idle tail is. Very few
+platforms hand you that split for free.
+
+---
+
+## 2026-08-17 — Getting a private image onto Runpod
+
+Everything needed to deploy a private container image exists. None of it is
+written down together, and one essential field is not written down at all.
+
+### The field that makes it work is undocumented
+
+A private image needs Runpod to hold a registry credential, and the endpoint
+needs to reference it. `docs.runpod.io/flash/custom-docker-images` says only:
+
+> Configure Docker registry authentication in Runpod console for private images.
+
+It never says how the endpoint picks that credential up. The flash skill's
+`reference/api.md` documents `PodTemplate` with four fields —
+`containerDiskInGb`, `dockerArgs`, `ports`, `startScript` — and none of them is
+it.
+
+The answer is `PodTemplate(containerRegistryAuthId=...)`. It exists at
+`runpod_flash/core/resources/template.py:25` and is threaded into the deploy
+manifest at `cli/commands/build_utils/manifest.py:273-276`. It works. It is
+documented in neither the docs nor the skill, and was found by reading the SDK.
+
+This is a **draft issue**, unfiled, pending Kris's approval:
+
+> **Title:** `PodTemplate.containerRegistryAuthId` is required for private
+> images and is documented nowhere
+>
+> `docs.runpod.io/flash/custom-docker-images` tells the reader to "configure
+> Docker registry authentication in Runpod console for private images" but never
+> states how a Flash endpoint references the resulting credential. The
+> `PodTemplate` example on that page shows only `containerDiskInGb`.
+>
+> The mechanism is `PodTemplate(containerRegistryAuthId="<id>")`, present in the
+> SDK (`core/resources/template.py`) and honoured by the deploy manifest builder
+> (`cli/commands/build_utils/manifest.py`). Nothing in the documentation or in
+> the published `flash` agent skill mentions the field.
+>
+> **Suggestion:** add it to the `PodTemplate` reference and show it in the
+> private-image section of `flash/custom-docker-images`, alongside how to obtain
+> the id (`runpodctl registry list`, or the console).
+
+### `runpodctl registry create` has only one way in, and it is the wrong one
+
+```
+Flags:
+      --name string       registry auth name (required)
+      --password string   registry password (required)
+      --username string   registry username (required)
+```
+
+A registry password as a command-line argument lands in the process table and
+the shell history, and stays in both after the command finishes. There is no
+`--password-stdin`, no `--password-file`, and no prompt — which is notable
+because `docker login` has offered `--password-stdin` for years and warns when
+you use `--password`.
+
+This project did not use the command. The credential was created in the console
+instead and only its **id** read back with `runpodctl registry list`, which is
+not a secret. Least privilege applied on the other side too: the token Runpod
+stores is scoped `read:packages` only, so a leak of Runpod's copy cannot publish.
+
+> **Draft issue — Title:** `runpodctl registry create` accepts a registry
+> password only as a command-line flag
+>
+> The only interface is `--password <string>`, which puts a long-lived registry
+> credential in the process table and the shell history. There is no
+> `--password-stdin`, `--password-file`, or interactive prompt.
+>
+> **Suggestion:** add `--password-stdin`, matching `docker login`, and warn when
+> `--password` is used.
+
+### `flash build` imports every `.py` in the directory, and `.gitignore` is the only way out
+
+`flash build` failed on an app it should not have cared about:
+
+```
+Failed to load:
+  verify_port.py: ModuleNotFoundError: No module named 'numpy'
+```
+
+`verify_port.py` is a local development tool. It is not the app, not imported by
+the app, and not deployed. But Flash imports every `.py` file in the project
+directory to discover `Endpoint` objects, so a module-level `import numpy` in a
+file that has nothing to do with the deployment fails the whole build — because
+the flash CLI's own environment has no numpy, and no reason to.
+
+**The escape hatch used to be `.flashignore`, and it was removed in v1.4.**
+`cli/utils/ignore.py:53-59` still warns if it finds one:
+
+> `.flashignore` is no longer supported; patterns are now built-in. Move any
+> custom patterns to `.gitignore` and delete `.flashignore`.
+
+So the only remaining way to keep a file out of the build is to put it in
+`.gitignore`, which conflates two unrelated things: "not in version control" and
+"not part of this app". A checked-in tool that lives beside the app cannot be
+excluded without untracking it.
+
+Worked around by deferring the numpy and PIL imports into `main()`, which is the
+smaller change. Recorded because the failure mode is confusing — the error names
+a file the user was not deploying, for a dependency the app does not have.
+
+> **Draft issue — Title:** `flash build` imports every `.py` in the project
+> directory, and since v1.4 the only way to exclude one is `.gitignore`
+>
+> Flash imports each `.py` file under the project directory to discover
+> `Endpoint` objects. A module-level import in an unrelated local script — a
+> test, a development tool — fails the build with `Failed to load: <file>:
+> ModuleNotFoundError`, even though the file is not part of the app and is never
+> deployed.
+>
+> `.flashignore` was removed in v1.4 (`cli/utils/ignore.py:53-59`), and the
+> suggested replacement is `.gitignore`. That conflates "not in version control"
+> with "not part of the app": excluding a checked-in helper script requires
+> untracking it.
+>
+> **Suggestion:** treat a failed import of a file that declares no `Endpoint` as
+> a warning rather than an error, or restore a build-scope ignore file separate
+> from `.gitignore`.
+
+### Credit: `--build-context` and a bind mount solved the slow part cleanly
+
+Not a Runpod feature, but worth recording because it changed the shape of the
+work. The five model files were already on the build machine. Docker's named
+build contexts let an optional local cache override a `FROM scratch` stage, so
+the same Dockerfile copies from disk when the cache is offered and downloads
+~11GB from HuggingFace when it is not. Staging took **127 s** instead of a long
+download, with the identical hash check on both paths.
+
+### The thing that actually saved money was not a Runpod tool at all
+
+The first build of the image **segfaulted on boot** and could never have served
+a request. It was caught by running the container on the machine that built it,
+which cost nothing. Had it gone straight to a Runpod endpoint, the finding would
+have been a paid cold start ending in a crash loop, diagnosed through worker
+logs.
+
+Runpod's own guidance points the other way. Cycle 1's audit noted that
+`runpod-usage/reference/development-loop.md:9` puts verification after
+deployment — `→ run/deploy → VERIFY with a real request → deliver → cost-guard +
+teardown` — and that no skill in the pack asks before spending money. A "boot
+the image locally first" step costs nothing and belongs ahead of the first
+deploy in that loop. Details of the crash itself are in
+[FINDINGS.md](FINDINGS.md); it was our defect, not Runpod's.
+
+---
+
 ## 2026-08-17 — The public-endpoint catalogue, and four opaque 500s
 
 Numbers in [FINDINGS.md](FINDINGS.md). This is what the documentation and the API
@@ -163,9 +440,69 @@ HTTP 400 {"error":"Extra input keys provided in request body",
 So the v1 REST API will *report* the field and will not *accept* it. The only
 remaining lever found was deleting the endpoint.
 
-This is the material for draft issue 5, which is **not written yet and not
-filed** — it waits on the longer measurement, per the same rule as drafts 2
-and 3.
+The longer measurement it was waiting on is now done — three hours of a standby
+worker cost $0.0000000000 — so the draft is written. **Not filed**, pending
+Kris's approval.
+
+> **Title:** `Endpoint(workers=(0, N))` deploys `workersStandby: 1`, so an app
+> documented as scale-to-zero always holds a worker warm
+>
+> **Versions:** `runpod-flash` 1.19.0, `runpod` 1.12.0, `runpodctl`
+> 2.9.0-c094cac, Python 3.13.
+>
+> **What happens.** `workers=` is documented as `(min, max)`. Deploying with
+> `workers=(0, 1)` produces `workersMin: 0` and also **`workersStandby: 1`** —
+> the API field behind what the console calls an *active worker*. The endpoint
+> holds one worker warm continuously and never reaches zero workers.
+>
+> **Reproduce.**
+> ```python
+> api = Endpoint(name="hello-flash", gpu=GpuGroup.AMPERE_16,
+>                workers=(0, 1), idle_timeout=60, dependencies=[])
+>
+> @api.post("/predict")
+> async def predict(data: dict):
+>     return {"ok": True}
+> ```
+> ```console
+> $ flash deploy --app hello-flash
+> $ curl -s https://rest.runpod.io/v1/endpoints -H "Authorization: Bearer $KEY"
+> { "id": "...", "workersMin": 0, "workersMax": 1,
+>   "workersStandby": 1,          <-- not requested
+>   "idleTimeout": 60 }
+> ```
+> Observed on two independent deploys of the same unchanged app. Polling
+> `GET /v2/<id>/health` for four minutes with zero jobs ever queued shows the
+> worker oscillating between `running` and `idle`/`ready`, never scaling to zero,
+> well past the 60-second idle timeout.
+>
+> **This is not a billing complaint.** Measured over 11 m 13 s with no requests,
+> and again over 2 h 59 m, `clientBalance` did not move at ten decimal places —
+> where a billed 16 GB worker at $0.58/hr would have accrued $0.108 and $1.74
+> respectively. The standby worker did not bill. The report is that **the
+> deployed configuration does not match the requested one**, and that the
+> difference is invisible.
+>
+> **It is hard to see and hard to undo.**
+> - `runpodctl serverless list` and `serverless get <id>` return `workersMax` and
+>   omit **both** `workersMin` and `workersStandby`.
+> - `runpodctl serverless update` has `--workers-min` and `--workers-max` and no
+>   standby flag.
+> - `PATCH /v1/endpoints/<id>` with `{"workersStandby": 0}` returns
+>   `400 {"error":"Extra input keys provided in request body","problems":["key
+>   provided in request body which is not in input schema: 'workersStandby'"]}`.
+>   The v1 REST API reports the field and will not accept it.
+>
+> The only lever found was deleting the endpoint.
+>
+> **Suggestions.**
+> 1. Have `workers=(min, max)` set `workersStandby` to `min`, so the deployed
+>    configuration matches the requested one.
+> 2. If a standby worker is intentional, document it next to `workers=` on the
+>    `Endpoint` reference and expose it as a parameter that can be set to 0.
+> 3. Separately: include `workersMin` and `workersStandby` in
+>    `runpodctl serverless get`, and accept `workersStandby` on the REST update
+>    route. A setting that can be read but not written is difficult to correct.
 
 ### The CLI prints a request example that cannot work
 

@@ -1,0 +1,272 @@
+{
+  "tier": "RTX4090-24GB",
+  "endpoint": "h4rz8tmjkq35fu",
+  "started_utc": "2026-08-18T02:21:45Z",
+  "cold": {
+    "plate": "0001",
+    "kind": "COLD",
+    "reference_slug": null,
+    "wall_s": 431.734,
+    "status": "COMPLETED",
+    "delayTime_ms": 414910,
+    "executionTime_ms": 15261,
+    "model_load_s": 6.51,
+    "render_s": 8.376,
+    "total_s": 14.889,
+    "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+    "ip_adapter": false,
+    "fidelity": {
+      "compared": true,
+      "identical": false,
+      "differing_pixels": 637911,
+      "total_pixels": 1011712,
+      "max_abs": 172
+    }
+  },
+  "warm_render_s_sorted": [
+    4.025,
+    4.027,
+    4.029,
+    4.406,
+    5.288,
+    7.363
+  ],
+  "warm_render_median_s": 4.406,
+  "warm_n": 6,
+  "idle_window_s": 90.0,
+  "idle_worker_states": [
+    {
+      "t": 0.2,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 10.3,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 20.5,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 30.6,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 40.8,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 51.0,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 61.1,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 71.3,
+      "idle": 0,
+      "initializing": 0,
+      "ready": 0,
+      "running": 1,
+      "throttled": 0,
+      "unhealthy": 0
+    },
+    {
+      "t": 81.5,
+      "idle": 1,
+      "initializing": 0,
+      "ready": 1,
+      "running": 0,
+      "throttled": 0,
+      "unhealthy": 0
+    }
+  ],
+  "balance_before": 49.8664194626,
+  "balance_after_settled": 49.8395396663,
+  "cost_usd": 0.0268797963,
+  "results": [
+    {
+      "plate": "0001",
+      "kind": "COLD",
+      "reference_slug": null,
+      "wall_s": 431.734,
+      "status": "COMPLETED",
+      "delayTime_ms": 414910,
+      "executionTime_ms": 15261,
+      "model_load_s": 6.51,
+      "render_s": 8.376,
+      "total_s": 14.889,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": false,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 637911,
+        "total_pixels": 1011712,
+        "max_abs": 172
+      }
+    },
+    {
+      "plate": "0003",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 11.567,
+      "status": "COMPLETED",
+      "delayTime_ms": 138,
+      "executionTime_ms": 7813,
+      "model_load_s": 0,
+      "render_s": 7.363,
+      "total_s": 7.369,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 633047,
+        "total_pixels": 1011712,
+        "max_abs": 142
+      }
+    },
+    {
+      "plate": "0006",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 7.978,
+      "status": "COMPLETED",
+      "delayTime_ms": 231,
+      "executionTime_ms": 4994,
+      "model_load_s": 0,
+      "render_s": 4.029,
+      "total_s": 4.04,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 587533,
+        "total_pixels": 1011712,
+        "max_abs": 170
+      }
+    },
+    {
+      "plate": "0008",
+      "kind": "warm",
+      "reference_slug": "brom-bones",
+      "wall_s": 8.234,
+      "status": "COMPLETED",
+      "delayTime_ms": 149,
+      "executionTime_ms": 6199,
+      "model_load_s": 0,
+      "render_s": 5.288,
+      "total_s": 5.307,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 993300,
+        "total_pixels": 1011712,
+        "max_abs": 158
+      }
+    },
+    {
+      "plate": "0011",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 7.053,
+      "status": "COMPLETED",
+      "delayTime_ms": 160,
+      "executionTime_ms": 4864,
+      "model_load_s": 0,
+      "render_s": 4.025,
+      "total_s": 4.032,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 989517,
+        "total_pixels": 1011712,
+        "max_abs": 165
+      }
+    },
+    {
+      "plate": "0013",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 8.268,
+      "status": "COMPLETED",
+      "delayTime_ms": 159,
+      "executionTime_ms": 5359,
+      "model_load_s": 0,
+      "render_s": 4.406,
+      "total_s": 4.412,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 989906,
+        "total_pixels": 1011712,
+        "max_abs": 169
+      }
+    },
+    {
+      "plate": "0015",
+      "kind": "warm",
+      "reference_slug": "ichabod",
+      "wall_s": 7.108,
+      "status": "COMPLETED",
+      "delayTime_ms": 154,
+      "executionTime_ms": 4968,
+      "model_load_s": 0,
+      "render_s": 4.027,
+      "total_s": 4.034,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "ip_adapter": true,
+      "fidelity": {
+        "compared": true,
+        "identical": false,
+        "differing_pixels": 551978,
+        "total_pixels": 1011712,
+        "max_abs": 68
+      }
+    }
+  ]
+}

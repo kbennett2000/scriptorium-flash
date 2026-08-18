@@ -41,6 +41,7 @@ BOOT_TIMEOUT_S = float(os.environ.get("COMFY_BOOT_TIMEOUT_S", "600"))
 RENDER_TIMEOUT_S = float(os.environ.get("RENDER_TIMEOUT_S", "300"))
 
 _booted = False
+_gpu_name: str | None = None
 
 
 def _get(path: str, timeout: float = 30.0) -> bytes:
@@ -56,21 +57,51 @@ def _post(path: str, payload: dict, timeout: float = 60.0) -> dict:
         return json.loads(resp.read() or b"{}")
 
 
+def _device_name(stats: dict) -> str:
+    """Pull the GPU model name out of ComfyUI's /system_stats.
+
+    ``NVIDIA_VISIBLE_DEVICES`` is not usable for this. On a Runpod serverless
+    worker it returns an opaque index or UUID, and the hello-world deployment
+    measured in FINDINGS.md got back the literal string ``void``. The card model
+    is the one thing a per-plate timing is meaningless without, because
+    ``GpuGroup``/multi-type pools hand out whichever card is cheapest and
+    available -- so the number has to say which one it describes.
+
+    ComfyUI reports it directly: ``devices[0].name`` is e.g.
+    ``cuda:0 NVIDIA RTX A5000 : cudaMallocAsync``.
+    """
+    devices = stats.get("devices") or []
+    if devices and isinstance(devices[0], dict):
+        name = devices[0].get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    return "unknown"
+
+
 def wait_for_comfy() -> float:
     """Block until ComfyUI answers, returning how long that took.
 
     Only the first request on a worker pays this. It is reported separately
     rather than folded into render time, because conflating them is how a cold
     start gets mistaken for a slow model.
+
+    The readiness probe's own response carries the GPU model, so it is captured
+    here rather than asked for again.
     """
-    global _booted
+    global _booted, _gpu_name
     if _booted:
         return 0.0
     t0 = time.monotonic()
     deadline = t0 + BOOT_TIMEOUT_S
     while time.monotonic() < deadline:
         try:
-            _get("/system_stats", timeout=5)
+            raw = _get("/system_stats", timeout=5)
+            try:
+                _gpu_name = _device_name(json.loads(raw or b"{}"))
+            except (ValueError, TypeError):
+                # A malformed /system_stats must not fail a render. The card
+                # name is reporting metadata; the render is the job.
+                _gpu_name = "unknown"
             _booted = True
             return time.monotonic() - t0
         except (urllib.error.URLError, OSError, TimeoutError):
@@ -184,7 +215,10 @@ def handler(job: dict) -> dict:
         "scheduler": g["3"]["inputs"]["scheduler"],
         "lora": g.get("20", {}).get("inputs", {}).get("lora_name"),
         "ip_adapter": bool(reference),
-        "gpu": os.environ.get("NVIDIA_VISIBLE_DEVICES", "unknown"),
+        # The card model, from ComfyUI. Not NVIDIA_VISIBLE_DEVICES -- see
+        # _device_name(). Every per-plate number in FINDINGS.md is quoted
+        # beside this value.
+        "gpu": _gpu_name or "unknown",
     }
 
 

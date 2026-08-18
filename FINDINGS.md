@@ -24,8 +24,13 @@ Rules for entries:
 | 2026-08-17 | Cycle 2, entire cycle — read-only account queries only | $0.00 | `runpodctl billing {pods,serverless,network-volume}`, all-time window, all return `[]` |
 | 2026-08-17 | Cycle 3, task 1 — `hello-flash` deployed, 4 requests, deleted after 458 s | **$0.0066245833** | `clientBalance` $49.9945861833 → $49.9879616000, settled and re-read |
 | 2026-08-17 | Cycle 3, task 3 — 26 hosted text-model calls across two models, plus parameter and schema isolation | **$0.0838488300** | `clientBalance` $49.9879616000 → $49.9041127700; cross-checked against the endpoints' own `cost` fields |
+| 2026-08-18 | Cycle 3, task 5 — render pass on the 24 GB tier: cold start + 6 warm plates + 90 s idle | **$0.0376933074** | `clientBalance` $49.9041127700 → $49.8664194626, settled after teardown |
+| 2026-08-18 | Cycle 3, task 6 — render pass on a pinned RTX 4090: cold start + 6 warm plates + 90 s idle | **$0.0439145185** | `clientBalance` $49.8664194626 → $49.8225049441, settled after teardown |
 
-**Total Runpod spend to date: $0.0904734133**
+**Total Runpod spend to date: $0.1720812392**
+
+Cycle 3 alone: **$0.1720812392**, against a $0.20 estimate in the brief and a
+$0.45 ceiling. Closing balance **$49.8225049441**.
 
 Cycle 2 spent nothing: all three billing categories returned `[]` over an
 all-time window and `clientBalance` never moved.
@@ -182,10 +187,74 @@ one short window, not a law, and what the remaining ~8.6 s covers is not yet
 pinned down. A longer window with the phases separated is running now; its result
 and the arithmetic go in the idle-billing section.
 
-Until then this is recorded as an open question, not an answer, and **draft issue
-3 stays unfiled** — the measurement it was waiting for now points the opposite
-way from the draft, which is precisely the case the cycle rules say must not be
-filed.
+That question is now answered — see "What is billed: the pull is free, the idle
+tail is not" below. The 41.12 s is execution plus a short worker-start tail, and
+the standby time is not in it. **Draft issue 3 is killed**, and the reasoning is
+under "Draft issue 3 is killed, and the misreading is the finding".
+
+### Does an idle Flash app bill? No. Three hours, to ten decimal places.
+
+Cycle 2 answered this from documentation and could not test it, because `flash`
+could not authenticate. Measured now.
+
+`hello-flash` was deployed at 2026-08-17T19:57:02Z with `workers=(0, 1)` and left
+alone. It is not a hypothetical zero-worker endpoint: Flash gave it
+`workersStandby: 1`, so a worker sat **warm** for the whole window.
+
+| | |
+|---|---|
+| Window | 19:57:24Z → 22:57:01Z (**2 h 59 m 37 s**) |
+| `clientBalance` at open | $49.9879616000 |
+| `clientBalance` at close | $49.9041127700 |
+| Difference | $0.0838488300 |
+| — hosted text-model calls in the same window (task 3) | $0.0838488300 |
+| **— attributable to the idle app** | **$0.0000000000** |
+
+Every cent of the window's spend is accounted for by task 3's public-endpoint
+calls, whose costs are independently confirmed by each response's own `cost`
+field. The remainder is zero to ten decimal places.
+
+**A tighter measurement isolates it completely.** Before task 3 began, the app
+sat with nothing else running at all:
+
+| | |
+|---|---|
+| Window | 19:57:43Z → 20:08:56Z (**11 m 13 s**), zero requests sent |
+| Balance | $49.9879616000 → $49.9879616000 |
+| **Difference** | **$0.0000000000** |
+
+If a warm 16 GB worker were billed at $0.58/hr, eleven minutes would have accrued
+**$0.108** — eight orders of magnitude above the balance's resolution. It did not
+move.
+
+**Verdict: an idle Flash app costs nothing, and it costs nothing even though
+Flash holds a worker warm.** The Cycle 2 documentary answer was right, and the
+practical worry that prompted it — a 64 GB container disk quietly accruing
+$6.40/month — does not happen.
+
+**Decision: the app stays deployed**, which is what Cycle 2 concluded on paper
+and what the measurement now supports.
+
+**One caveat that matters for the render endpoint, not this one.** "Idle" here
+means *no traffic*. A worker warm inside its `idle_timeout` immediately after a
+request **is** billed — measured separately at 87.9 s and 94.3 s on the two
+render passes. Leaving an untouched app deployed is free; leaving `idle_timeout`
+generous on an app that is being used is not.
+
+### Draft issue 2 — confirmed, and filed as runpod/docs#798
+
+Draft issue 2 said the serverless pricing page implies container disk bills
+independently of workers, and that a reader of that page alone concludes a
+deployed idle endpoint accrues ~$6.40/month for Flash's default 64 GB.
+
+**The measurement confirms the draft.** Three hours of a deployed endpoint with a
+64 GB container disk and a warm worker accrued **$0.00**. Had container disk been
+the standalone monthly meter the pricing page implies, eleven minutes alone would
+have shown $0.0016 — detectable at ten decimals. Nothing accrued.
+
+**Filed: [runpod/docs#798](https://github.com/runpod/docs/issues/798)** — per the
+cycle rule that a draft goes out only when its measurement confirms it. No
+duplicate existed.
 
 ### Hosted text models: 26 real calls, 0 clean parses, and a fixable reason
 
@@ -409,6 +478,303 @@ evidence for it came from this deployment.
 `jobs: {completed: 0, …}` never moved despite four successful requests, because
 load-balanced routes are not queue jobs. Anyone reading `completed` as "requests
 served" on a Flash LB endpoint will read zero forever.
+
+### The render container: built, and it did not work
+
+The image that carries the home render stack to a Runpod GPU.
+
+| | |
+|---|---|
+| Size | **17.66 GB** (`docker image inspect`) |
+| First build | **31 min 29 s** wall clock |
+| Model staging | **127.3 s** for all five files, copied and hash-verified |
+| ComfyUI boot, measured locally | **8.0 s** |
+
+Layer breakdown: models 10.8 GB, torch + ComfyUI requirements 8.48 GB, CUDA base
+1.05 GB, apt 173 MB, ComfyUI 144 MB, IP-Adapter nodes 6 MB.
+
+**The five model files came off this machine rather than off HuggingFace**, and
+that is safe because they are checked the same way either route. All five are
+present locally at the exact recorded sizes and SHA256s, so `fetch_models.py
+--from-dir` copied them in 127 s instead of pulling ~11 GB. A cached file that
+fails its hash is deleted and re-downloaded rather than trusted; that behaviour
+has its own test. Without `--build-context` the cache stage is empty and the
+build downloads exactly as before.
+
+**Do not trust `docker images` for the size.** It reports **41.7 GB** for this
+image — the containerd store counts the manifest and the unpacked snapshot
+separately. `docker image inspect` reports 17.66 GB, and the layer sum is
+24.07 GB uncompressed. Three numbers for one image; the middle one is the image.
+
+### Pushing 17.66 GB to a private registry took four hours
+
+| | |
+|---|---|
+| Registry | `ghcr.io/kbennett2000/scriptorium-imagegen:sdxl-base-1.0`, **private** |
+| Pushed | 2026-08-17T21:24:06Z → 2026-08-18T01:20:59Z |
+| **Wall clock** | **3 h 56 m 53 s** |
+| Digest | `sha256:7df38e537f6c8a8f1830ef917b8e316985507dac84deaf882e86febc16185cda` |
+| Visibility, checked after | **`private`** |
+
+The digest is the fixed image, not the first one — the segfaulting build was
+`sha256:b057b3530d98…` and never became the tag.
+
+**Two things made this slow, and only one of them was the network.** Home upload
+measured **20.5 Mbit/s**, which puts a ~13 GB compressed push at 85–105 minutes
+on its own. It took nearly four hours because a stale push of the earlier image
+ran concurrently for three of them, uploading the same blobs and halving the
+available bandwidth.
+
+That was avoidable and it was our error: `pkill -f "docker push"` reported
+success, and the process survived. Snap's confinement denies signals to the
+docker client even from the user that owns it —
+
+```
+$ kill -9 622468
+kill: (622468) - Permission denied     # process owner is kb; so is the shell
+```
+
+— and the client is not doing the upload anyway. `/proc/<pid>/io` for the client
+shows **0.03 GB read and 0 written** across the whole push: `dockerd` streams the
+layers, so killing the client would not have stopped the transfer regardless. The
+lesson is the general one — a kill that prints nothing is not a kill that worked.
+
+**Registry credentials, and what Runpod was given.** Runpod pulls a private image
+using a stored credential, created in the console rather than with
+`runpodctl registry create`, whose only interface puts a registry password in the
+process table and the shell history. The token Runpod holds is scoped
+**`read:packages` only**, so a compromise of Runpod's copy cannot publish
+anything. This project read back only the credential id, which is not a secret.
+
+### Home versus Runpod, measured
+
+Both tiers ran the identical protocol: one cold request, then six warm renders on
+the same `pg-41` plates with the same seeds and prompts the home bakery used,
+then a deliberate 90-second idle window. Seven of the nine plates carry an
+IP-Adapter reference portrait, and the references were sent, so the work is the
+same work.
+
+| | Home RTX 5070 | Runpod 24 GB tier | Runpod 24 GB PRO |
+|---|---:|---:|---:|
+| Card actually used | RTX 5070 (12 GB) | **RTX PRO 6000 Blackwell MIG 1g.24gb** | **RTX 4090** |
+| Card requested | — | A5000 *or* 3090 | RTX 4090 |
+| Rate | — | $0.69/hr | $1.10/hr |
+| **Warm render median** | **7.595 s** (n=8) | **12.381 s** (n=6) | **4.406 s** (n=6) |
+| Warm range | — | 9.457–15.916 s | 4.025–7.363 s |
+| vs home | — | **63% slower** | **42% faster** |
+| Cold start, wall | n/a | 387.27 s | 431.73 s |
+| — of which image pull + worker start | — | 360.2 s | 414.9 s |
+| — of which ComfyUI boot | — | 1.5 s | 6.5 s |
+| **Cost per warm plate** | $0 marginal | **$0.002656** | **$0.001742** |
+| Cost, whole 7-render pass | — | **$0.0376933074** | **$0.0439145185** |
+
+Home's second reference bake, `pg-1952`, gives 7.615 s (n=6), so the home
+constant is stable across books at ~7.6 s.
+
+**The 4090 is 42% faster than home and cheaper per plate than the slower tier.**
+$1.10/hr buys renders at $0.001742 each; $0.69/hr buys them at $0.002656,
+because the cheaper card takes 2.8× as long. On per-plate cost the expensive
+tier wins, and it is not close.
+
+**A whole `pg-41` bake is 16 renders.** At the 4090's measured per-plate cost
+that is **$0.028** of GPU time, against 123.34 s of the home bake. The cold start
+is the thing that dominates a single-book run, not the rendering.
+
+### Runpod did not give us the GPU we asked for
+
+**The 24 GB pass requested two specific cards and got a third.** `app.py` named
+`NVIDIA RTX A5000` and `NVIDIA GeForce RTX 3090`, and the created endpoint read
+back exactly those two:
+
+```json
+"gpuTypeIds": ["NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"]
+```
+
+Every one of the seven renders reported:
+
+```
+cuda:0 NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb : cudaMallocAsync
+```
+
+A MIG partition of a Blackwell — neither requested card. It is inside Runpod's
+24 GB tier (the pricing page lists "L4, A5000, 3090, MIG 24GB" together at
+$0.69/hr) so the billing is right, but the hardware constraint was not honoured
+and nothing reported the substitution. Only the handler reading ComfyUI's
+`/system_stats` revealed it, which is the entire reason that defect was fixed
+before this pass.
+
+**Pinning one exact card was honoured.** The second pass set
+`gpu=GpuType.NVIDIA_GEFORCE_RTX_4090` — a single `GpuType` rather than a list —
+and every render ran on `cuda:0 NVIDIA GeForce RTX 4090`.
+
+So the rule, from two measurements: **a list of `GpuType`s is advisory, a single
+pinned `GpuType` is respected.** For a measurement that means to compare
+hardware, only the pinned form is usable. For a production workload it means a
+multi-card list buys supply resilience at the price of not knowing what you are
+running on — which is fine for throughput and not fine for a latency SLO.
+
+This also retires the Cycle 2 plan's reasoning. Excluding the L4 from the pool
+bought nothing: the pool substituted a card that was not on the list at all.
+
+### The plates are not pixel-identical, and the GPU is why
+
+Cycle 2 proved `flash-imagegen` reproduces the home render graph **pixel for
+pixel** — 0 of 1,011,712 pixels different, on both the LoRA-only and the
+LoRA+IP-Adapter paths. That proof was run on home's GPU.
+
+On Runpod's GPUs it does not hold:
+
+| Plate | IP-Adapter | 24 GB tier | 4090 |
+|---|---|---:|---:|
+| 0001 | none | 79.6% differ | 63.1% differ |
+| 0003 | ichabod | 64.8% | 62.6% |
+| 0006 | ichabod | 56.3% | 58.1% |
+| 0008 | brom-bones | 98.2% | 98.2% |
+| 0011 | ichabod | 97.7% | 97.8% |
+| 0013 | ichabod | 97.7% | 97.8% |
+| 0015 | ichabod | 51.0% | 54.6% |
+
+Maximum absolute channel difference reached 214 of 255, so these are not
+last-bit differences; they are visibly different images of the same scene.
+
+**`PYTORCH_JIT=0` is not the cause.** That was the stated risk of the container
+workaround, and the measurement clears it: plate **0001 uses no IP-Adapter at
+all** — the path where kornia and TorchScript play no part — and it differs by
+79.6%. Whatever is moving the pixels moves them without IP-Adapter in the
+picture.
+
+**Different silicon is the cause.** SDXL at a fixed seed is deterministic *on the
+same hardware and kernels*. Across architectures — a 12 GB Ada-class 5070, a
+Blackwell MIG slice, and a 4090 — cuDNN algorithm selection, TF32 behaviour and
+reduction order all differ, and 25 sampling steps compound any divergence from
+the first one. The two Runpod cards also differ from **each other**, which is the
+tell: if the container were at fault both would differ from home identically.
+
+**What this costs the project, stated plainly.** The comparison is still a fair
+one *for timing* — both sides run the same graph, the same weights, the same
+sampler, the same steps, and produce a plate of the same scene. It is no longer a
+claim of bit-identical output. Anything that depends on a plate re-rendering
+identically — re-running a bake and expecting the same book — holds only while
+the hardware is held constant. That is a real constraint on moving rendering to a
+pool of mixed GPUs, and it was not visible before this measurement.
+
+### What is billed: the pull is free, the idle tail is not
+
+Both passes reconcile the same way, and the arithmetic is unusually clean.
+
+| | 24 GB tier | 4090 |
+|---|---:|---:|
+| Rate | $0.69/hr | $1.10/hr |
+| Cost | $0.0376933074 | $0.0439145185 |
+| **Billed seconds** | **196.7 s** | **143.7 s** |
+| Endpoint lifetime | 918 s | 967 s |
+| Image pull + worker start | 360.2 s | 414.9 s |
+| Sum of execution time | 108.7 s | 49.5 s |
+| **Billed − execution** | **87.9 s** | **94.3 s** |
+| Deliberate idle window | 90 s | 90 s |
+
+**Image pull is not billed.** Between them the two passes spent 775 seconds
+pulling a 17.66 GB image, and none of it appears in billed time — billed seconds
+are far below endpoint lifetime in both cases, and the gap is fully explained
+without it. This answers the question AI-ASSIST.md's Gap 2 raised: the docs
+exempt model download and are silent on image pull; measurement says image pull
+is exempt too. **That is a large practical result for a container this size** —
+a six-to-seven minute pull that costs nothing changes the economics of baking
+weights into an image rather than mounting a network volume.
+
+**The idle tail after a request is billed.** Billed-minus-execution came to
+87.9 s and 94.3 s against a 90-second idle window in both runs — an agreement too
+close to be coincidence across two different tiers and rates.
+
+**And a standby worker with no traffic at all is not billed.** Three hours of
+`hello-flash` sitting at `workersStandby: 1` cost exactly $0.0000000000.
+
+So there are **two different warm states and they bill differently**:
+
+| State | Billed? | Evidence |
+|---|---|---|
+| Worker warm after a request, inside `idle_timeout` | **Yes** | 87.9 s and 94.3 s against 90 s windows |
+| Worker warm with no traffic (standby) | **No** | 3 h at $0.00, twice-confirmed |
+| Image pull / worker start | **No** | 775 s unaccounted across two passes |
+
+The health API muddies this: during the billed idle window it reported the worker
+as `running`, not `idle`, for the first ~81 seconds of 90, flipping to
+`idle`/`ready` only at the end. So the state that bills is not labelled `idle` in
+the API while it is billing.
+
+### Draft issue 3 is killed, and the misreading is the finding
+
+Draft issue 3 said `runpod/golden-paths/15-monitor-and-debug.md:73` was **wrong**
+to list `idle`/`ready` as not billed, and that `13-autoscaling-tuning.md:229`
+("warm & billed during idle timeout") was right. It was going to be filed as a
+correction to `15`.
+
+**It is not filed, because the measurement shows both pages are partly right and
+the real answer is a distinction neither of them draws.** The idle-timeout tail
+after a request bills, which is `13`'s claim. A warm worker with no traffic does
+not bill, which is `15`'s claim. They are describing two different states with
+one label.
+
+Cycle 2 reached its conclusion from documentation alone and picked a side. The
+brief's rule — do not file when the measurement contradicts the draft, and record
+the misreading as its own finding — applies exactly, and this is that record.
+
+What could honestly be filed instead is a different issue: that both pages use
+`idle`/`ready` for two states that bill differently, and that the health API
+reports the billing one as `running`. That is new text, not the approved draft,
+so it goes to Kris rather than to a repository.
+
+### The container segfaulted on boot, and a free local test caught it
+
+**The first build could not run at all.** Started locally on the home GPU, it
+died before serving anything:
+
+```
+Fatal Python error: Segmentation fault
+Stack (most recent call first):
+  File ".../torch/jit/_script.py", line 1262 in _script_impl
+  File ".../kornia/__init__.py", line 28 in <module>
+  File "/opt/ComfyUI/nodes.py", line 2510 in init_builtin_extra_nodes
+```
+
+**The cause is the interpreter, and it is our defect.** Ubuntu 22.04's
+`python3.11` package is **3.11.0rc1** — a release candidate from 2022. Home runs
+**3.11.15**. Every other version is identical across the two:
+
+| | Home | Container |
+|---|---|---|
+| Python | **3.11.15** | **3.11.0rc1** |
+| kornia | 0.8.3 | 0.8.3 |
+| torch | 2.11.0+cu128 | 2.11.0+cu128 |
+| torchvision | 0.26.0+cu128 | 0.26.0+cu128 |
+| scipy | 1.17.1 | 1.17.1 |
+| safetensors | 0.8.0 | 0.8.0 |
+
+Same packages, different interpreter, and only the container crashes — inside
+`torch.jit.script`, which does deep bytecode introspection and is exactly the
+kind of code an interpreter release candidate breaks.
+
+The Dockerfile's own header says everything is pinned to what home runs. The
+Python was not, and nothing in the build would have told us.
+
+**Worked around with `ENV PYTORCH_JIT=0`, which fixes it completely** — ComfyUI
+then boots in 8.0 s and reports its device correctly. The proper fix is a real
+3.11.15 from deadsnakes, which invalidates every layer below the apt install and
+costs a full rebuild and re-push. **Deferred to Cycle 4 as a recorded trade-off.**
+
+**What the workaround might cost, stated in advance rather than after.**
+TorchScript is off in the container and on at home. kornia is used in IP-Adapter
+image preprocessing, and 7 of the 9 `pg-41` plates condition on a reference
+portrait, so a low-order pixel difference is possible in principle.
+`tools/render_bench.py` pixel-compares every returned plate against the one home
+already rendered, so this is measured, not assumed.
+
+**The wider point is about where this was caught.** Nothing about this failure
+needed a Runpod worker to find. Running the container on the machine that built
+it costs nothing, and it turned what would have been a paid cold start ending in
+a crash loop into a twenty-minute local diagnosis. The pixel-fidelity check in
+Cycle 2 was built on the same principle: verify locally and free, before
+spending.
 
 ---
 
