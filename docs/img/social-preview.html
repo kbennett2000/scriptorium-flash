@@ -1,0 +1,108 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root {
+    --surface: #1a1a19;
+    --ink:     #ffffff;
+    --ink-2:   #c3c2b7;
+    --ink-3:   #8a8980;
+    --runpod:  #3987e5;
+    --home:    #d95926;
+    --rule:    #33322f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--surface); }
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: 1280px; height: 640px;
+    background: var(--surface);
+    padding: 64px 72px 60px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 5px;
+    background: var(--runpod);
+  }
+
+  h1 {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 68px; font-weight: 700; color: var(--ink); letter-spacing: -1.5px;
+    line-height: 1;
+  }
+  .tag {
+    font-size: 18px; color: var(--runpod); letter-spacing: 2.4px;
+    text-transform: uppercase; margin-top: 18px; font-weight: 700;
+  }
+  .lede {
+    font-size: 26px; line-height: 1.45; color: var(--ink-2);
+    max-width: 1000px; margin-top: 20px;
+  }
+
+  .chart-title {
+    font-size: 16px; color: var(--ink-3); letter-spacing: 1.6px;
+    text-transform: uppercase; margin-bottom: 18px;
+  }
+  .row { display: flex; align-items: center; gap: 20px; }
+  .row + .row { margin-top: 14px; }
+  .row-label {
+    width: 330px; text-align: right; font-size: 19px; color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .track { width: 500px; }
+  .bar { height: 36px; border-radius: 0 5px 5px 0; }
+  .bar.home   { background: var(--home);   width: 500px; }
+  .bar.runpod { background: var(--runpod); width: 418px; }
+  .val {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 27px; font-weight: 700; color: var(--ink); white-space: nowrap;
+  }
+
+  .facts {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-top: 1px solid var(--rule); padding-top: 22px;
+  }
+  .fact { display: flex; flex-direction: column; gap: 5px; }
+  .fact b {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 25px; color: var(--ink); font-weight: 700;
+  }
+  .fact span { font-size: 16px; color: var(--ink-3); }
+</style>
+
+<div class="card">
+
+  <div>
+    <h1>scriptorium-flash</h1>
+    <div class="tag">measured, not estimated</div>
+    <p class="lede">
+      Moving the AI steps of a working app onto Runpod, and writing down what it
+      actually cost and how long it actually took.
+    </p>
+  </div>
+
+  <div>
+    <div class="chart-title">One illustrated book, end to end</div>
+    <div class="row">
+      <div class="row-label">Home, one desktop GPU</div>
+      <div class="track"><div class="bar home"></div></div>
+      <div class="val">388.63 s</div>
+    </div>
+    <div class="row">
+      <div class="row-label">Runpod, pinned RTX 4090</div>
+      <div class="track"><div class="bar runpod"></div></div>
+      <div class="val">325.24 s</div>
+    </div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><b>1.195&times;</b><span>end to end, doing more work</span></div>
+    <div class="fact"><b>$1.1320333838</b><span>total spend, every cent logged</span></div>
+    <div class="fact"><b>$0.00</b><span>idle, measured four times</span></div>
+    <div class="fact"><b>0</b><span>pixels different from home</span></div>
+  </div>
+
+</div>
