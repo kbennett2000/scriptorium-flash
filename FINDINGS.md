@@ -118,6 +118,25 @@ shipped **84** plates that were near-copies of one reference painting, which is
 why `start_at` is 0.3. That ADR is in Scriptorium's private repo; the figure is
 cited, not re-measured.
 
+### Two documents are excluded from the `check_numbers.py` sweep, by design
+
+`flash-imagegen/MODELS.md` and `docs/img/README.md`. Neither is exempt because
+it was inconvenient; both are excluded because their numbers are not
+measurements this project produced, and forcing them into this log would make
+the log worse.
+
+`docs/img/README.md` documents the two rendered images. Its numbers are design
+parameters and the output of a colour-contrast validator: pixel dimensions,
+colour-vision separation, a contrast ratio. They describe a picture, not a
+render, a cost or a duration.
+
+**The images themselves are the one genuine hole in the "every number is
+checked" claim**, and it is worth stating rather than glossing: `check_numbers.py`
+reads text, and a PNG is not text. The figures baked into `banner.png` and
+`social-preview.png` are copied from this file by hand and can silently go stale
+when the ledger moves. That is written at the top of `docs/img/README.md` so
+whoever changes a number next has a chance of remembering.
+
 ### What `flash-imagegen/MODELS.md` numbers are, and why they are not checked here
 
 `MODELS.md` carries byte counts, SHA256 digests, a CivitAI model id and a licence

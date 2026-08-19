@@ -1,0 +1,124 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root {
+    --surface:   #1a1a19;
+    --ink:       #ffffff;
+    --ink-2:     #c3c2b7;
+    --ink-3:     #8a8980;
+    --runpod:    #3987e5;
+    --home:      #d95926;
+    --rule:      #33322f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--surface); }
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .banner {
+    width: 1280px; height: 400px;
+    background: var(--surface);
+    padding: 44px 56px 40px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  /* a thin accent rule, top edge */
+  .banner::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--runpod);
+  }
+
+  .head { display: flex; align-items: baseline; gap: 18px; }
+  h1 {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 40px; font-weight: 700; color: var(--ink); letter-spacing: -0.5px;
+  }
+  .tag {
+    font-size: 13px; color: var(--ink-3); letter-spacing: 1.4px;
+    text-transform: uppercase; padding-bottom: 4px;
+  }
+  .lede {
+    font-size: 19px; line-height: 1.5; color: var(--ink-2);
+    max-width: 900px; margin-top: 12px;
+  }
+
+  /* ---- the comparison ---- */
+  .chart { margin-top: 4px; }
+  .chart-title {
+    font-size: 13px; color: var(--ink-3); letter-spacing: 1.2px;
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  .row { display: flex; align-items: center; gap: 16px; }
+  .row + .row { margin-top: 10px; }         /* > 2px surface gap between bars */
+  .row-label {
+    width: 300px; text-align: right; font-size: 15px; color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .track { width: 720px; position: relative; }
+  .bar {
+    height: 26px;
+    border-radius: 0 4px 4px 0;             /* 4px rounded data-end */
+  }
+  .bar.home   { background: var(--home);   width: 720px; }
+  .bar.runpod { background: var(--runpod); width: 603px; }
+  .val {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 19px; font-weight: 700; color: var(--ink);
+    white-space: nowrap;
+  }
+  .delta {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 14px; color: var(--ink-3); margin-left: 10px; font-weight: 400;
+  }
+
+  /* ---- evidence strip ---- */
+  .facts {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-top: 1px solid var(--rule); padding-top: 16px;
+  }
+  .fact { display: flex; flex-direction: column; gap: 3px; }
+  .fact b {
+    font-family: "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
+    font-size: 17px; color: var(--ink); font-weight: 700;
+  }
+  .fact span { font-size: 12px; color: var(--ink-3); letter-spacing: 0.3px; }
+</style>
+
+<div class="banner">
+
+  <div>
+    <div class="head">
+      <h1>scriptorium-flash</h1>
+      <div class="tag">measured, not estimated</div>
+    </div>
+    <p class="lede">
+      Moving the AI steps of a working app onto Runpod, and writing down what it
+      actually cost and how long it actually took.
+    </p>
+  </div>
+
+  <div class="chart">
+    <div class="chart-title">One illustrated book, end to end</div>
+
+    <div class="row">
+      <div class="row-label">Home, one desktop GPU</div>
+      <div class="track"><div class="bar home"></div></div>
+      <div class="val">388.63 s</div>
+    </div>
+
+    <div class="row">
+      <div class="row-label">Runpod, plates on a pinned RTX 4090</div>
+      <div class="track"><div class="bar runpod"></div></div>
+      <div class="val">325.24 s <span class="delta">1.195&times;</span></div>
+    </div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><b>$1.1320333838</b><span>total spend, reconciled to 10 decimal places</span></div>
+    <div class="fact"><b>0</b><span>differing pixels of 1,011,712, against home</span></div>
+    <div class="fact"><b>$0.00</b><span>idle, measured four times</span></div>
+    <div class="fact"><b>7</b><span>issues filed upstream</span></div>
+  </div>
+
+</div>

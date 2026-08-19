@@ -51,6 +51,7 @@ _ADDRESSES = re.compile(
       \b[\w./-]+\.(?:py|ts|sh|mjs|json|md|toml)   # a filename, then
         :\d+(?:-\d+)?                             # :line or :line-line,
         (?:\s*,\s*\d+(?:-\d+)?)*                  # and any ", 230-278" continuation
+    | \#[0-9a-f]{3,8}\b                           # #3987e5 -- a colour, not a count
     | \bADR[- ]\d+                                # ADR-0007, ADR 0038
     | \b\d+(?:\.\d+){2,}(?:\+\w+)?                # 0.27.0, 3.11.15, 127.0.0.1,
                                                   #   2.11.0+cu128 -- no

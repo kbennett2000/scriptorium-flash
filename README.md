@@ -1,3 +1,9 @@
+![scriptorium-flash: one illustrated book end to end took 388.63 s on a home
+desktop GPU and 325.24 s with plates rendered on a pinned Runpod RTX 4090.
+Total spend $1.1320333838, reconciled to ten decimal places. Zero differing
+pixels of 1,011,712 against home. $0.00 idle, measured four
+times.](docs/img/banner.png)
+
 # scriptorium-flash
 
 Moving the AI steps of a working app onto Runpod, and writing down what it
