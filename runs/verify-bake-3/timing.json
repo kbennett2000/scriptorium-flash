@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "book_id": "pg-41",
+  "collected_at": "2026-08-19T16:21:22.112721+00:00",
+  "window": {
+    "start": "2026-08-19T16:15:37.549652+00:00",
+    "end": "2026-08-19T16:21:00.879968+00:00",
+    "source": "driver"
+  },
+  "wall_s": 323.33,
+  "gates": {
+    "cast_s": 0.01121404800505843,
+    "approve_s": 0.009448686003452167,
+    "total_s": 0.021,
+    "source": "driver"
+  },
+  "machine_time_s": 323.31,
+  "buckets": {
+    "text_steps_s": 160.57,
+    "image_rendering_s": 64.99,
+    "model_loading_s": 12.04,
+    "orchestration_s": 85.72
+  },
+  "gross": {
+    "text_including_model_load_s": 168.1,
+    "image_including_model_load_s": 69.51
+  },
+  "model_loading_detail": {
+    "ollama_s": 7.52,
+    "ollama_cold_requests": 1,
+    "sdxl_s": 4.52,
+    "sdxl": {
+      "source": "renderer-reported (params_echo)",
+      "warm_render_median_s": 5.472,
+      "warm_render_count": 17,
+      "cards": [
+        "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync"
+      ]
+    },
+    "gpu_free_events": 0,
+    "text_model_unload_events": 3
+  },
+  "text_detail": {
+    "calls_counted": 56,
+    "by_transform": {
+      "cast-mentions": {
+        "n": 20,
+        "sum_s": 61.53,
+        "median_s": 2.775
+      },
+      "cast-canonicalize": {
+        "n": 6,
+        "sum_s": 16.36,
+        "median_s": 1.894
+      },
+      "scene-update": {
+        "n": 20,
+        "sum_s": 58.84,
+        "median_s": 2.777
+      },
+      "illustration-prompt": {
+        "n": 10,
+        "sum_s": 31.37,
+        "median_s": 2.466
+      }
+    },
+    "non_200_requests": 0,
+    "artifact_counts": {
+      "cast-mentions": 20,
+      "scene-update": 20,
+      "cast-canonicalize": 6
+    }
+  },
+  "image_detail": {
+    "renders_in_window": 0,
+    "renders_matched": 0,
+    "renders_unattributed": 0,
+    "plates_with_render_timestamp": 17,
+    "plates_selected": 10,
+    "plates_reattempted": 0,
+    "pair_gap_p50_s": null,
+    "pair_gap_max_s": null,
+    "derivative_time_s": 0,
+    "renderer_reported": {
+      "work_sum_s": 121.8,
+      "elapsed_union_s": 69.51,
+      "overlap_factor": 1.752,
+      "plates": 17,
+      "sum_s": 121.8,
+      "cards": [
+        "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync"
+      ],
+      "per_plate": {
+        "0001": 8.063,
+        "0004": 8.033,
+        "0006": 6.552,
+        "0008": 14.108,
+        "0010": 4.935,
+        "0012": 6.674,
+        "0014": 15.055,
+        "0017": 6.617,
+        "0018": 5.472,
+        "0020": 4.768,
+        "cover": 4.17,
+        "portrait-brom-bones": 16.056,
+        "portrait-hans-van-ripper": 4.06,
+        "portrait-headless-horseman": 5.064,
+        "portrait-ichabod": 4.007,
+        "portrait-katrina": 4.147,
+        "portrait-old-baltus-van-tassel": 4.022
+      }
+    }
+  },
+  "orchestration_detail": {
+    "derivatives_s": 0,
+    "idle_between_phases_s": 34.07,
+    "idle_gaps": 11,
+    "runner_tick_s": 5.0,
+    "unexplained_s": 51.65
+  },
+  "integrity": {
+    "counts_match_artifacts": true,
+    "residual_non_negative": true,
+    "foreign_transforms_in_window": [],
+    "warnings": []
+  }
+}

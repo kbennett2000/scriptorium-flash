@@ -1,0 +1,79 @@
+{
+  "endpoint": "cire2u3mv4cr3m",
+  "requested_workers": 4,
+  "warm_before": {
+    "idle": 2,
+    "initializing": 0,
+    "ready": 2,
+    "running": 0,
+    "throttled": 2,
+    "unhealthy": 0
+  },
+  "warm_after": {
+    "idle": 2,
+    "initializing": 0,
+    "ready": 2,
+    "running": 1,
+    "throttled": 1,
+    "unhealthy": 0
+  },
+  "warm_after_count": 3,
+  "elapsed_s": 39.296,
+  "size": 512,
+  "distinct_cards": [
+    "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync"
+  ],
+  "distinct_workers": [
+    "cshn79yre3wsyn"
+  ],
+  "results": [
+    {
+      "worker": 0,
+      "status": "COMPLETED",
+      "wall_s": 26.45,
+      "delayTime_ms": 8964,
+      "executionTime_ms": 15571,
+      "model_load_s": 5.01,
+      "render_s": 10.291,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "error": null,
+      "worker_id": "cshn79yre3wsyn"
+    },
+    {
+      "worker": 1,
+      "status": "COMPLETED",
+      "wall_s": 39.295,
+      "delayTime_ms": 34299,
+      "executionTime_ms": 3704,
+      "model_load_s": 0,
+      "render_s": 3.523,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "error": null,
+      "worker_id": "cshn79yre3wsyn"
+    },
+    {
+      "worker": 2,
+      "status": "COMPLETED",
+      "wall_s": 30.712,
+      "delayTime_ms": 25419,
+      "executionTime_ms": 3397,
+      "model_load_s": 0,
+      "render_s": 3.274,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "error": null,
+      "worker_id": "cshn79yre3wsyn"
+    },
+    {
+      "worker": 3,
+      "status": "COMPLETED",
+      "wall_s": 35.18,
+      "delayTime_ms": 29836,
+      "executionTime_ms": 3452,
+      "model_load_s": 0,
+      "render_s": 3.27,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "error": null,
+      "worker_id": "cshn79yre3wsyn"
+    }
+  ]
+}

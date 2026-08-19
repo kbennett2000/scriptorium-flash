@@ -1,0 +1,64 @@
+{
+  "endpoint": "cire2u3mv4cr3m",
+  "requested_workers": 4,
+  "warm_before": {
+    "idle": 1,
+    "initializing": 0,
+    "ready": 1,
+    "running": 3,
+    "throttled": 0,
+    "unhealthy": 0
+  },
+  "warm_after": {
+    "idle": 1,
+    "initializing": 0,
+    "ready": 1,
+    "running": 3,
+    "throttled": 0,
+    "unhealthy": 0
+  },
+  "warm_after_count": 4,
+  "elapsed_s": 65.542,
+  "size": 512,
+  "distinct_cards": [
+    "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync"
+  ],
+  "distinct_workers": [
+    "7wzloie0dxnxw2"
+  ],
+  "results": [
+    {
+      "worker": 0,
+      "status": "COMPLETED",
+      "wall_s": 5.174,
+      "delayTime_ms": 145,
+      "executionTime_ms": 2219,
+      "model_load_s": 0,
+      "render_s": 1.957,
+      "gpu": "cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync",
+      "error": null,
+      "worker_id": "7wzloie0dxnxw2"
+    },
+    {
+      "worker": 1,
+      "status": "ABANDONED",
+      "job_id": "c1b15f02-631c-42db-aa48-b3a03c7f4fea-u1",
+      "wall_s": 65.513,
+      "error": "still running server-side; the client stopped waiting"
+    },
+    {
+      "worker": 2,
+      "status": "ABANDONED",
+      "job_id": "9ab6ca10-d96b-4070-8501-dbdfeb57cd6a-u1",
+      "wall_s": 65.54,
+      "error": "still running server-side; the client stopped waiting"
+    },
+    {
+      "worker": 3,
+      "status": "ABANDONED",
+      "job_id": "bda82568-f53a-4c8c-8ba5-4aee3341a77e-u1",
+      "wall_s": 65.538,
+      "error": "still running server-side; the client stopped waiting"
+    }
+  ]
+}

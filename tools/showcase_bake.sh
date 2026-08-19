@@ -26,12 +26,14 @@
 #    script ran the cold-load check last, after the endpoint had already been
 #    deleted -- so it could name the bad images and never fix them.
 #
-#   ./showcase_bake.sh <endpoint-id>
+#   ./showcase_bake.sh                    # endpoint id resolved by endpoint_id.py
 #
 # Assumes the endpoint is provisioned and pinned (provision_client_endpoint.py).
 
 set -euo pipefail
-ENDPOINT="${1:?usage: showcase_bake.sh <endpoint-id>}"
+# The id is optional: with no argument, endpoint_id.py resolves the one
+# serverless endpoint on the account. Pass one to override.
+ENDPOINT="${1:-$(python3 "$(dirname "$0")/endpoint_id.py")}"
 BOOK_ID="${BOOK_ID:-pg-120}"
 GUTENBERG_ID="${GUTENBERG_ID:-120}"
 TITLE="${TITLE:-Treasure Island}"
@@ -85,7 +87,7 @@ BAKE_T0=$(date -u +%s)
     --title "$TITLE" --author "$AUTHOR" --era "$ERA" \
     --style-id oil-painting --density-preset lavish --images-per-scene 1 \
     --at-gate "cast_done=$REPO/tools/prune_cast.py --book-id $BOOK_ID" \
-    --at-gate "prompts_draft=$REPO/tools/prewarm.py --endpoint $ENDPOINT --workers 4 --out $OUT/prewarm.json" \
+    --at-gate "prompts_draft=$REPO/tools/prewarm.py --endpoint $ENDPOINT --workers 4 --straggler-grace 60 --out $OUT/prewarm.json" \
     --out "$OUT/run.json"
 BAKE_T1=$(date -u +%s)
 echo "  bake wall clock: $((BAKE_T1 - BAKE_T0)) s"

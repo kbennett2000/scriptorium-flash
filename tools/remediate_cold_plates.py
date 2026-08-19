@@ -43,6 +43,9 @@ DATA_ROOT = Path("/home/kb/scriptorium-data")
 BASE = "http://localhost:8720"
 REPO = Path(__file__).resolve().parent
 
+sys.path.insert(0, str(REPO))
+import endpoint_id as EP  # noqa: E402
+
 # What counts as a cold load. `model_load_s` is `wait_for_comfy()` -- the time the
 # handler waited for ComfyUI to answer /system_stats. A worker that has just staged a
 # model reports 2.5-3.5 s of it. A warm worker usually reports exactly 0, but not
@@ -92,11 +95,12 @@ def warm_one(endpoint: str) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--book-id", required=True)
-    ap.add_argument("--endpoint", required=True)
+    ap.add_argument("--endpoint", default=None, help="serverless endpoint id; omit to resolve it from runpodctl")
     ap.add_argument("--data-root", type=Path, default=DATA_ROOT)
     ap.add_argument("--attempts", type=int, default=3)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    args.endpoint = args.endpoint or EP.resolve()
 
     cold = cold_images(args.book_id, args.data_root)
     if not cold:

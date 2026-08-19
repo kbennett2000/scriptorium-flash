@@ -40,7 +40,9 @@ page.on("requestfailed", (r) => {
   problems.push(`request failed: ${r.url().slice(0, 160)} (${r.failure()?.errorText})`);
 });
 const badStatus = [];
+let responses = 0;
 page.on("response", (r) => {
+  responses += 1;
   // /artsets/{user}/{book}/edits/manifest 404s on the real bakery as well
   // ("no such set 'edits'") until somebody makes a private edit, so a 404 there
   // is the mirror being faithful rather than the mirror being incomplete.
@@ -50,6 +52,48 @@ page.on("response", (r) => {
 
 console.log(`reader  ${url}`);
 console.log(`book    ${bookId}\n`);
+
+// Anything that throws below lands here. Without this the script dies as an
+// uncaught TimeoutError and takes `problems`, `badStatus` and the screenshot
+// with it, which is what a 300 s checkout hang looked like on 2026-08-19: a
+// Node stack trace and no evidence at all.
+async function bail(stage, err) {
+  console.log(`\nFAILED at: ${stage}`);
+  console.log(`  ${String(err).split("\n")[0]}`);
+  console.log(`\n  responses seen   ${responses}`);
+  console.log(`  4xx/5xx          ${badStatus.length}`);
+  for (const b of badStatus.slice(0, 10)) console.log(`    ${b}`);
+  console.log(`  console/request  ${problems.length}`);
+  for (const q of problems.slice(0, 10)) console.log(`    ${q}`);
+  await page.screenshot({ path: `${shotDir}/FAILED-${stage}.png`, fullPage: true })
+    .catch(() => {});
+  console.log(`\n  screenshot of the failure: ${shotDir}/FAILED-${stage}.png`);
+  await browser.close().catch(() => {});
+  process.exit(1);
+}
+
+// Every step, not just the checkout. A pre-flight check that dies as a Node
+// stack trace tells you it broke and nothing about why, which is the whole
+// reason this net exists.
+process.on("unhandledRejection", (err) => { bail("step", err); });
+process.on("uncaughtException", (err) => { bail("step", err); });
+
+// Wait, but say what is happening while waiting. A silent five-minute block is
+// indistinguishable from a hang, and it was read as one.
+async function waitLoud(locator, label, totalMs, sliceMs = 15000) {
+  const t0 = Date.now();
+  for (let waited = 0; waited < totalMs; waited += sliceMs) {
+    try {
+      await locator.waitFor({ timeout: Math.min(sliceMs, totalMs - waited) });
+      return (Date.now() - t0) / 1000;
+    } catch (err) {
+      if (waited + sliceMs >= totalMs) throw err;
+      console.log(`       ...${label}: ${((Date.now() - t0) / 1000).toFixed(0)}s, ` +
+                  `${responses} responses, ${badStatus.length} bad`);
+    }
+  }
+  return null;
+}
 
 await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
 await page.screenshot({ path: `${shotDir}/1-profiles.png` });
@@ -75,8 +119,35 @@ const download = page.getByRole("button", { name: /^Download$/ }).first();
 await download.waitFor({ timeout: 20000 });
 await download.click();
 const openBtn = page.locator(".shelf-open").first();
-await openBtn.waitFor({ timeout: 300000 });   // a whole illustrated book
-ok("checkout completed (manifest + files)", true);
+// A whole illustrated book: ~330 requests for 6.8 MB. It completes in 11-21 s
+// warm, and one run in five died partway with the reader showing "Failed to
+// fetch" and the card at "incomplete". That is a flaky download, not a broken
+// site, and the reader already handles it: the button becomes **Resume
+// download**. Retrying `/^Download$/` matches nothing once that has happened,
+// which is exactly how the first version of this retry wasted 150 s clicking a
+// button that was no longer on the page. Match either label.
+const resumeOrDownload = () =>
+  page.getByRole("button", { name: /^(Resume download|Download)$/ }).first();
+let checkoutS = null;
+for (let attempt = 1; attempt <= 3 && checkoutS === null; attempt += 1) {
+  const label = attempt === 1 ? "checkout" : `checkout retry ${attempt - 1}`;
+  checkoutS = await waitLoud(openBtn, label, 120000).catch(() => null);
+  if (checkoutS !== null) break;
+  const card = await page.locator(".shelf-card").first().innerText().catch(() => "");
+  const btn = resumeOrDownload();
+  if (!(await btn.count())) {
+    await bail("checkout", new Error(
+      `stalled with no Download/Resume button. Card reads: ${card.replace(/\n/g, " | ")}`));
+  }
+  const btnText = (await btn.innerText().catch(() => "?")).trim();
+  console.log(`       checkout stalled; card reads "${card.split("\n").pop()}", ` +
+              `clicking "${btnText}" (attempt ${attempt + 1} of 3)`);
+  await btn.click().catch(() => {});
+}
+if (checkoutS === null) {
+  await bail("checkout", new Error("checkout did not complete in 3 attempts"));
+}
+ok("checkout completed (manifest + files)", true, `${checkoutS.toFixed(1)}s`);
 await page.screenshot({ path: `${shotDir}/3-resident.png` });
 
 // 4. open and read

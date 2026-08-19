@@ -148,6 +148,118 @@ excluded from the `check_numbers.py` sweep by design rather than by oversight.
 
 ---
 
+## 2026-08-19 — Cycle 7
+
+Sources for this whole section: `runs/rehearsal-test/`, `runs/verify-bake-1/`,
+`runs/verify-bake-2/`, `runs/verify-bake-3/` (each holding `prewarm.json`,
+`run.json`, `timing.json`, `warm-demo.json`), and the endpoint's own
+`/health` and `/status/{id}` responses read through `tools/runpod_http.py`.
+
+### The desktop GPU was contended, measured
+
+Measured on this desktop, 2026-08-19, via
+`nvidia-smi --query-compute-apps=pid,process_name,used_memory`. The card is an
+RTX 5070 holding **12,227 MiB**. ComfyUI held **6,940 MiB** of it, **57%**,
+having rendered nothing for seven hours. Everything else on the desktop -- all of
+Chrome, VS Code, the file manager, a text editor and the terminal -- came to
+**710 MiB**. Free memory with ComfyUI up: **3,204 MiB**.
+
+`journalctl -u comfyui --since "-16 hours" | grep -c "Prompt executed"` returned
+**1,313** renders between 15:00 and 23:16 the evening before. None belong to this
+project: no bake here has exceeded 91 plates and they render on Runpod.
+
+`qwen3.5:9b` wants **5.30 GB** resident and does not fit beside ComfyUI, which is
+the mechanism behind the previously recorded 2.523 s to 26-155 s collapse.
+
+### `prewarm.py` was reporting fleet depth from the wrong field
+
+`workers_ready()` summed `idle + ready + running` and reported **8** warm workers
+on an endpoint whose `workersMax` is 4. Every `/health` sample taken this day had
+`idle == ready`; they are the same workers under two names. Corrected to
+`max(idle, ready) + running`.
+
+Fleet depth was inferred from `model_load_s`, which only reports whether *this
+request* loaded a model. A 2-worker pass loaded exactly one model and the old
+NOTE called the fleet one deep, while the jobs' `workerId` fields showed **two**
+distinct workers. Depth is now read from `workerId`. **The Cycle 4 and Cycle 5
+"the fleet was one deep" figures are therefore unproven, not confirmed.**
+
+A clean 4-worker pass, fleet at `idle 4, throttled 0`: **13.74 s**, three distinct
+workers, warm renders **1.96**, **3.03** and **3.86 s**.
+
+### The ~300 s render stall
+
+`RENDER_TIMEOUT_S` in `flash-imagegen/handler.py` is 300 s and raises `render
+timed out after 300.0s`. Ten occurrences this day, every one between **300.66 s**
+and **310.93 s** wall: 300.66, 301.36, 301.61, 301.68, 302.39, 302.64, 303.26,
+305.36, 308.37, 310.93. Rounded for prose as **300.7** to **310.9 s**.
+
+Three explanations were tested and rejected:
+
+- **Not a wedged worker.** `sbvgs5tz3nk3cv` failed one request at 308.37 s and
+  completed another in **7.02 s** in the same pass.
+- **Not concurrency.** `app.py` sets `max_concurrency` 1, so a worker's requests
+  are sequential. One worker served three sequential requests successfully while
+  a different worker holding a single request stalled.
+- **Not throttling.** Stalls occurred at `throttled: 0`.
+
+What all ten share is a low `delayTime`, **0.0** to **9.1 s**: dispatched
+instantly to an idle worker. No request that queued behind other work stalled;
+observed queued delays of **162**, **167**, **213**, **228** and **233 s** all
+rendered normally. A fleet at `idle 4, ready 4, running 0, throttled 0` still
+stalled two of four, so it is idleness rather than newness. **This is a
+correlation across ten samples, not a mechanism.** Nobody has read the worker's
+ComfyUI log at the moment of a stall.
+
+### Bounding the client wait
+
+`--straggler-grace` measures from the last result of any kind, so two staggered
+stalls defeat it: a pass run with `--straggler-grace 15` took **320.46 s**. An
+absolute `--deadline` was added and measured three times at **31**, **32** and
+**34 s** against a 30 s cap.
+
+**Abandoning bounds the client's wait and does not free the worker.** An
+abandoned job runs on to its own 300 s timeout holding its worker. Three
+back-to-back `--deadline 30` passes left the endpoint at `inProgress: 4,
+inQueue: 6` and the second and third passes completed nothing at all.
+
+In the bake preamble the grace fired in 2 of 3 runs, releasing stragglers at
+about **68 s** rather than 300 s.
+
+### Five `pg-41` bakes, wall clock and attribution
+
+With the committed 325.24 s, five measurements against home's 388.63 s:
+
+| Run | Wall | Text | Orchestration | Rendering | Warm median | Depth |
+|---|---:|---:|---:|---:|---:|---:|
+| rehearsal-test | **302 s** | **53.1%** | **29.2%** | 46 s / **15.2%** | **5.26 s** (n=17) | deeper |
+| verify-bake-1 | **347 s** | **47.3%** | **22.4%** | **93 s** / **26.7%** | **5.47 s** (n=17) | 1 |
+| verify-bake-2 | **309 s** | **52.5%** | **26.2%** | **58 s** / **18.7%** | **5.02 s** (n=16) | 3 |
+| verify-bake-3 | **323 s** | **49.7%** | **26.5%** | 65 s / **20.1%** | **5.47 s** (n=17) | 2 |
+
+All four exited 0 and all four reported `counts match artifacts` from
+`bake_timing.py`. The spread is **302-347 s**. Text plus orchestration was
+**70-82%** across the five, putting Amdahl's floor at **242-248 s** every time.
+Rendering share ranged **15.2-26.7%** and tracks fleet depth: the slowest run was
+one worker deep and spent 93 s rendering; the fastest was deeper and spent 46 s.
+
+The single warm 832 px render reproduced three times: **5.06 s / 3.897 s** (Cycle
+4), **5.18 s / 3.737 s** and **4.94 s / 3.511 s** this day, all at `delayTime`
+under 25 ms.
+
+Warm 512 px renders this day spanned **1.96** to **5.2 s**.
+
+### The deployed reader's checkout is flaky, about 1 run in 7
+
+`tools/verify_reader.mjs` was run seven times against
+`https://scriptorium-reader.vercel.app`: six passed end to end in 20-27 s, one
+failed. The failure was a dropped fetch partway through the checkout's roughly
+**330** requests for **6.8 MB**; the reader displayed `Failed to fetch` and moved
+the card to `incomplete` with a **Resume download** button, which is its designed
+recovery. The check now retries that button up to three times.
+
+---
+
 ## 2026-08-18 — Cycle 6
 
 ### HALTED: the rehearsal bake ran $0.10 over the cycle ceiling and its warm median missed a pre-registered band

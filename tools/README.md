@@ -2,7 +2,7 @@
 
 Measurement scripts. Every one has a docstring that explains *why* it exists —
 usually because something was measured wrong first. This page is the index, so
-you do not have to open all nineteen to find the one you want.
+you do not have to open all twenty-one to find the one you want.
 
 **Runs anywhere?** means: does it work in a fresh clone with only a Runpod
 account? A **no** means it reads `~/scriptorium-data` or imports from
@@ -26,6 +26,7 @@ docstring before adding a tool that needs auth.
 
 | Tool | Runs anywhere? | |
 |---|---|---|
+| `endpoint_id.py` | **yes** | Resolve the endpoint id from `runpodctl`, so no command in the runbook has to be edited before it is pasted. Refuses to guess when there are zero or several. |
 | `provision_client_endpoint.py` | **yes** | Provision a Flash client-mode (`image=`) Endpoint and print its id. `flash deploy` does not do this and does not say so. |
 | `prewarm.py` | **yes** | Bring every worker on an endpoint to a warm, model-resident state — and report honestly when it only managed some of them. |
 | `settle_balance.py` | **yes** | Read the account balance until it stops moving, and say so only when it has. |

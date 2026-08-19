@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import runpod_http as R  # noqa: E402
+import endpoint_id as EP  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 BOOK = Path.home() / "scriptorium-data" / "work" / "pg-41"
@@ -191,7 +192,7 @@ def compare_to_home(plate: str, png_b64: str) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--endpoint", required=True, help="serverless endpoint id")
+    ap.add_argument("--endpoint", default=None, help="serverless endpoint id; omit to resolve it from runpodctl")
     ap.add_argument("--tier", required=True, help="label for FINDINGS.md, e.g. 'AMPERE_24'")
     ap.add_argument("--warm", type=int, default=6, help="warm renders after the cold one")
     ap.add_argument("--idle-window", type=float, default=90.0,
@@ -202,6 +203,7 @@ def main() -> int:
                     help="the Cycle 4 task 1 set: 0001/0003 isolate the interpreter, "
                          "0008/0013 run both conditioning arms to split the two causes")
     args = ap.parse_args()
+    args.endpoint = args.endpoint or EP.resolve()
 
     # Each row is (plate, send_conditioning). The default pass is the Cycle 3
     # protocol with conditioning now sent, so it is comparable to home's own work.

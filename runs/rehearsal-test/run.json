@@ -1,0 +1,104 @@
+{
+  "t_start": "2026-08-19T14:57:53.707687+00:00",
+  "t_end": "2026-08-19T15:02:55.210290+00:00",
+  "book_id": "pg-41",
+  "request": {
+    "source": {
+      "kind": "gutenberg",
+      "gutenberg_id": 41,
+      "title": "The Fall of the House of Usher",
+      "author": "Poe, Edgar Allan"
+    },
+    "bake": {
+      "style_id": "oil-painting",
+      "density_preset": "lavish",
+      "images_per_scene": 1,
+      "era": "1840s American Gothic",
+      "portraits_enabled": true,
+      "portrait_review": false,
+      "title": "The Fall of the House of Usher",
+      "author": "Poe, Edgar Allan"
+    }
+  },
+  "transitions": [
+    {
+      "at": "2026-08-19T14:57:54.318082+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-19T14:57:54.320764+00:00",
+      "state": "ingested"
+    },
+    {
+      "at": "2026-08-19T14:57:57.325113+00:00",
+      "state": "mentions_running"
+    },
+    {
+      "at": "2026-08-19T14:59:07.435724+00:00",
+      "state": "mentions_done"
+    },
+    {
+      "at": "2026-08-19T14:59:12.442919+00:00",
+      "state": "cast_running"
+    },
+    {
+      "at": "2026-08-19T14:59:33.475688+00:00",
+      "state": "cast_done"
+    },
+    {
+      "at": "2026-08-19T14:59:34.489255+00:00",
+      "state": "cast_approved"
+    },
+    {
+      "at": "2026-08-19T14:59:38.495034+00:00",
+      "state": "ledger_running"
+    },
+    {
+      "at": "2026-08-19T15:00:43.601984+00:00",
+      "state": "ledger_done"
+    },
+    {
+      "at": "2026-08-19T15:00:48.608843+00:00",
+      "state": "selected"
+    },
+    {
+      "at": "2026-08-19T15:00:53.615959+00:00",
+      "state": "prompts_running"
+    },
+    {
+      "at": "2026-08-19T15:01:26.670975+00:00",
+      "state": "prompts_draft"
+    },
+    {
+      "at": "2026-08-19T15:01:27.679267+00:00",
+      "state": "approved"
+    },
+    {
+      "at": "2026-08-19T15:01:31.685149+00:00",
+      "state": "portraits_rendering"
+    },
+    {
+      "at": "2026-08-19T15:02:07.862239+00:00",
+      "state": "portraits_review"
+    },
+    {
+      "at": "2026-08-19T15:02:08.865706+00:00",
+      "state": "rendering"
+    },
+    {
+      "at": "2026-08-19T15:02:50.070344+00:00",
+      "state": "rendered"
+    },
+    {
+      "at": "2026-08-19T15:02:55.210127+00:00",
+      "state": "published"
+    }
+  ],
+  "gates": {
+    "cast_s": 0.011862940998980775,
+    "approve_s": 0.00801998500537593,
+    "total_s": 0.02
+  },
+  "final_state": "published",
+  "plate_count": 10
+}

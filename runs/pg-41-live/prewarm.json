@@ -1,0 +1,62 @@
+{
+  "endpoint": "cire2u3mv4cr3m",
+  "requested_workers": 4,
+  "warm_before": {
+    "idle": 0,
+    "initializing": 0,
+    "ready": 0,
+    "running": 4,
+    "throttled": 0,
+    "unhealthy": 0
+  },
+  "warm_after": {
+    "idle": 0,
+    "initializing": 0,
+    "ready": 0,
+    "running": 4,
+    "throttled": 0,
+    "unhealthy": 0
+  },
+  "warm_after_count": 4,
+  "elapsed_s": 447.243,
+  "size": 512,
+  "distinct_cards": [],
+  "distinct_workers": [
+    "q1vnu48l81j57k"
+  ],
+  "results": [
+    {
+      "worker": 0,
+      "status": "ABANDONED",
+      "job_id": "0dcb9a1a-ae60-40ee-adec-ae434ace02d8-u2",
+      "wall_s": 445.15,
+      "error": "still running server-side; the client stopped waiting"
+    },
+    {
+      "worker": 1,
+      "status": "ABANDONED",
+      "job_id": "0023e0d5-676f-4d6a-885e-e7146b053260-u1",
+      "wall_s": 447.206,
+      "error": "still running server-side; the client stopped waiting"
+    },
+    {
+      "worker": 2,
+      "status": "FAILED",
+      "wall_s": 445.114,
+      "delayTime_ms": 142578,
+      "executionTime_ms": 300531,
+      "model_load_s": null,
+      "render_s": null,
+      "gpu": null,
+      "error": "render timed out after 300.0s",
+      "worker_id": "q1vnu48l81j57k"
+    },
+    {
+      "worker": 3,
+      "status": "ABANDONED",
+      "job_id": "423d59fd-4f20-4795-8a40-bcab3d060306-u1",
+      "wall_s": 447.241,
+      "error": "still running server-side; the client stopped waiting"
+    }
+  ]
+}
