@@ -70,7 +70,7 @@ ALLOWED = {
     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
     "2026", "2025",                     # years
     "12", "15", "20", "24", "30", "60", # clock/count prose
-    "363", "364", "365", "366", "798", "800", "327",  # issue numbers
+    "363", "364", "365", "366", "367", "798", "800", "327",  # issue numbers
     # ADR numbers. 0001-0003 are this repo's; the rest name ADRs in Scriptorium's
     # private repo, which this project cites but does not contain.
     "0001", "0002", "0003", "0036", "0037", "0038",

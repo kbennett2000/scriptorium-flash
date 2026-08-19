@@ -23,6 +23,39 @@ runpodctl serverless list      # the id is the "id" field
 Four steps. Do not skip the second one; it is the whole reason this section
 exists.
 
+### 0. Close everything that holds graphics memory. Every time.
+
+**Before anything else, and before the live bake in particular: check that
+nothing else on this desktop is holding graphics memory.** ComfyUI closed. Any
+other renderer closed. Then check rather than assume:
+
+```bash
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv \
+  | grep -Ei 'comfy|python|ollama' || echo "  clear"
+```
+
+**Do not look for an empty list — you will never get one.** A desktop session
+always has Chrome, VS Code and the file manager holding tens of megabytes each,
+and that is fine and unavoidable. What matters is a renderer or a model server:
+`comfyui`, a stray `python`, `ollama`. Want `clear`.
+
+If ComfyUI is there — and it is the usual culprit, holding a few hundred
+megabytes even when idle — close it and re-check before starting the bake.
+
+**This is what contamination looks like:** the Cycle 6 rehearsal bake took
+**744.91 s** against the headline's **325.24 s**, and the renders were not the
+problem — image rendering was **60.38 s** against 59.74 s, within a second.
+Every one of the 419.67 s of difference was orchestration on this machine, and
+`bake_timing.py` named the cause itself: *"20 ComfyUI renders in the window
+belong to nothing in this bake."* Something else was rendering locally the whole
+time.
+
+The renders are on Runpod and are safe. The orchestration is not, and the
+orchestration is most of the wall clock. A contended desktop turns the headline
+number into a number you cannot use — and this project has already measured what
+a shared GPU does to the text steps: one transform went from 2.523 s to
+**26–155 s**.
+
 ### 1. Is it alive?
 
 ```bash
@@ -156,6 +189,28 @@ Say which median you are quoting. A warm plate is **4.2790 s** against home's
 **7.595 s** (**1.78×**); across the whole bake including two cold-load renders it
 is **4.7725 s** (**1.59×**). The published per-image speedup uses the
 conservative one.
+
+**And say what was in flight beside it, because that moves the number.** Three
+bakes on the same image, the same pin and the same configured concurrency of 4
+gave warm medians of **4.2790 s**, **4.3080 s** and **5.0260 s**, at
+`overlap_factor` 1.249, 1.881 and 1.778. A single request against an idle warm
+worker — nothing else in flight — rendered in **2.813 s**, the fastest this
+project has recorded.
+
+So the safe form on stage is the range and its cause: **a warm plate takes about
+2.8 s alone and about 5 s inside a bake, and where it lands is decided by how
+wide Runpod's scaler opened, which the caller does not control.** That is the
+same point the fan-out slide already makes, arriving from the other direction.
+Do not promise a single per-render figure to an audience that can see the fleet
+width change while they watch.
+
+The rehearsal's fifteen warm renders split into two clusters — six at
+3.517–3.792 s and nine from 5.026 s to 13.862 s — with almost nothing between
+them. **That is unexplained and is written down as unexplained.** Concurrency is
+the obvious cause and `pg-120` contradicts it, having run wider still and stayed
+at 4.3080 s. If someone asks, that is the honest answer: we know the range, we
+know it moves with load, and we have not run the controlled experiment that would
+say why.
 
 ### 4. The book  ·  ~2 min
 
