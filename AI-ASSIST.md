@@ -65,7 +65,11 @@ what was attempted.** Every workflow in this repo now verifies by asking a
 second, independent question — `serverless list` after a delete, `model_load_s`
 after a pre-warm, six identical balance reads after a charge.
 
-*Draft issue, pending Kris's approval before filing on `runpod/flash`:*
+**Filed 2026-08-18 with Kris's approval as
+[runpod/flash#367](https://github.com/runpod/flash/issues/367)** — *`flash app
+delete` reports success but leaves the serverless endpoint running and billable*.
+It met the bar the other filings met: reproduced from a clean checkout, billing-
+impacting, and demonstrated rather than inferred. The text as filed:
 
 > **`flash app delete` deletes the app record but not its serverless endpoint**
 >

@@ -93,7 +93,7 @@ faster silicon or the fan-out.
 | [FINDINGS.md](FINDINGS.md) | **Every number this project produces.** Timings, costs, cold starts, and the corrections. Dated, newest first. |
 | [docs/NUMBERS.md](docs/NUMBERS.md) | The one-page card for the talk. Every figure cites FINDINGS.md; `tools/check_numbers.py` fails if one does not. |
 | [docs/DEMO-RUNBOOK.md](docs/DEMO-RUNBOOK.md) | The live demo, minute by minute, with a recovery line for every failure this project actually hit. |
-| [AI-ASSIST.md](AI-ASSIST.md) | How Runpod's own AI tooling performed — what it got right, what it got wrong, and the five issues that came out of it. |
+| [AI-ASSIST.md](AI-ASSIST.md) | How Runpod's own AI tooling performed — what it got right, what it got wrong, and the seven issues that came out of it. |
 | [docs/adr/](docs/adr/) | Architecture decisions: [0001](docs/adr/0001-architecture.md) on what moves, [0002](docs/adr/0002-reproducing-the-home-render-stack.md) on reproducing the render stack exactly. |
 | [hello-flash/](hello-flash/) | The smallest Flash app that deploys and answers one request. |
 | [flash-imagegen/](flash-imagegen/) | The production plate renderer, and [MODELS.md](flash-imagegen/MODELS.md) — the five model files, their hashes, and the terms they come with. |

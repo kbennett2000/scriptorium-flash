@@ -133,31 +133,79 @@ excluded from the `check_numbers.py` sweep by design rather than by oversight.
 
 ### HALTED: the rehearsal bake ran $0.10 over the cycle ceiling and its warm median missed a pre-registered band
 
-Two stop conditions fired on the same run and both are reported before anything
-else, because both are Kris's call rather than mine.
+Two stop conditions fired on the same run and both were Kris's call rather than
+mine. **Both are now resolved; the resolutions are recorded with them.**
 
-**1. Spend.** Cycle 6 has spent **$0.4025810092** against a **$0.30 ceiling** —
-over by **$0.1025810092**. The rehearsal alone was **$0.3963518425** against a
-$0.17 estimate for both its gates, so the estimate was low by 2.3×. No further
-paid step was taken. The endpoint is left standing, which is what the plan called
-for and which `currentSpendPerHr: 0` confirms costs nothing at rest.
+**1. Spend.** Cycle 6 spent **$0.4025810092** against a **$0.30 ceiling** — over
+by **$0.1025810092**. The rehearsal alone was **$0.3963518425** against a $0.17
+estimate for both its gates, so the estimate was low by 2.3×. No further paid
+step was taken. The endpoint was left standing, which is what the plan called for
+and which `currentSpendPerHr: 0` confirms costs nothing at rest.
 
-Where the estimate went wrong: it priced a bake, and what ran was a bake plus
-three separate pre-warm passes (one deliberate proof pass, one inside the bake
-script) against a fleet that opened to four workers and stayed open. Four warm
-workers with 60-second idle tails, across a 12-minute bake instead of a 5-minute
-one, is the whole difference.
+**Ratified by Kris on 2026-08-18**, with the note that the halt rule worked as
+designed: the overrun was caught, reported and stopped on rather than absorbed.
+
+**The lesson, recorded so the next estimate is not wrong the same way: a bake
+estimate must price the pre-warm passes and the open-fleet minutes, not just the
+bake.** This one priced a bake. What ran was a bake plus three separate pre-warm
+passes — one deliberate proof pass, one inside the bake script — against a fleet
+that opened to four workers and stayed open. Four warm workers with 60-second
+idle tails across a 12-minute bake instead of a 5-minute one is the entire
+difference, and none of it was in the estimate. The billable quantity is not
+"one bake"; it is **worker-minutes alive**, which is the bake's duration times
+the width the scaler chose, plus every warm-up that preceded it, plus a
+60-second tail on each worker. Estimate that product, and estimate it at the
+*wide* end, because the width is not ours to set.
 
 **2. A card number.** `docs/NUMBERS.md` publishes a warm render median of
 **4.2790 s** (n=16) for `pg-41` and **4.3080 s** (n=91) for `pg-120`. This
 rehearsal, measured with the same instrument — the workers' own echoes, read by
 `cold_load_plates.py` over `library/` — returned **5.0260 s (n=15)**. The band
-registered in advance was 4.0–4.6 s. **The card has not been changed.**
+registered in advance was 4.0–4.6 s.
 
-### The rehearsal's warm renders are bimodal, and the card is not slow
+**Resolved by Kris on 2026-08-18: the card stays exactly as published.** No
+figure on it changes, no controlled run happens before the talk, and the variance
+is stated as variance — see the section below, which is the finding this
+discrepancy turned into.
 
-The distribution is the interesting part, and it argues against "the 4090 got
-slower":
+### Per-render latency depends on how wide the scaler opens
+
+**This is the finding the halted discrepancy turned into, and it is the one to
+state on stage rather than a single per-image number.**
+
+Three bakes, same image, same single-GpuType pin, same configured concurrency of
+4, same instrument — the workers' own echoes:
+
+| Run | `overlap_factor` | Warm median |
+|---|---:|---:|
+| `pg-41`, Cycle 4 headline | 1.249 | **4.2790 s** (n=16) |
+| `pg-120`, Cycle 5 showcase | 1.881 | **4.3080 s** (n=91) |
+| `pg-41`, Cycle 6 rehearsal | 1.778 | **5.0260 s** (n=15) |
+
+And the floor, measured twenty seconds after the slowest of those, as one request
+against an idle warm worker: **`render_s` 2.813 s**, `delayTime` 13 ms,
+`model_load_s` 0, wall 5.175 s. **That is the fastest render this project has
+recorded**, on the same endpoint that had just produced a 5.0260 s median.
+
+So the honest statement is the range and its cause, not a point estimate: **a
+warm 832×1216 plate on a pinned RTX 4090 takes between 2.813 s alone and about
+5 s in a bake, and where in that range it lands is decided by how much work is
+in flight beside it — which is decided by Runpod's scaler, not by the caller.**
+That is the same claim the card already makes about `overlap_factor`, arriving
+from the other direction: the configuration does not predict the width, and now
+we know the width moves the per-render number too.
+
+The published per-image speedups — **1.59×** conservative, **1.78×** warm to
+warm — were both measured on runs that fanned out narrowly. A demo that opens
+four workers may show worse per-render numbers than the card and better
+wall-clock ones. Say which median, and say what was in flight beside it.
+
+#### Open question: the rehearsal's warm renders are bimodal
+
+Left open deliberately. **No controlled run before the talk** — this is recorded
+as an unexplained observation rather than dressed up as a conclusion.
+
+The fifteen warm renders of the rehearsal do not form one population:
 
 ```
 3.517  3.655  3.765  3.767  3.782  3.792 | 5.026  5.026  5.101  5.466
@@ -165,28 +213,20 @@ slower":
 ```
 
 **Six of the fifteen came in at 3.517–3.792 s — faster than any median this
-project has published**, including the 4.2790 s the card quotes. The other nine
-run from 5.026 s to 13.862 s. That is not a slower card; it is two populations.
+project has published**, including the 4.2790 s on the card. The other nine run
+from 5.026 s to 13.862 s. Two clusters with almost nothing between them is not
+what a uniformly slower card looks like.
 
-The single warm render taken immediately afterwards, one request against an idle
-warm worker, settles it: **`render_s` 2.813 s**, `delayTime` 13 ms,
-`model_load_s` 0, wall **5.175 s**. That is the fastest render this project has
-ever recorded, on the same endpoint, twenty seconds after the bake that produced
-a 5.0260 s median.
+The obvious mechanism is concurrency: this run fanned out 1.778 wide against the
+1.249 behind the published figure. **The obvious mechanism does not survive
+contact with `pg-120`**, which ran *wider still* at 1.881 and returned 4.3080 s.
+So there is a plausible cause and one data point that contradicts it, and
+settling it needs a run that varies width deliberately while holding everything
+else fixed. That run has not happened.
 
-**So the honest reading is that concurrency inflates per-render time**, and the
-card's medians describe a narrower fan-out than this run got. `overlap_factor`
-was **1.778** here, against 1.249 for the headline bake whose 4.2790 s the card
-publishes. The competing evidence is `pg-120`, which ran **1.881** wide and still
-returned 4.3080 s — so width alone does not explain it either, and this is not
-yet a finding, it is a discrepancy with a plausible mechanism and one
-contradicting data point. **It needs a controlled run to settle, which is not
-this cycle's work.**
-
-What can be said without more evidence: the per-image speedup the talk quotes is
-**1.59×** conservative and **1.78×** warm-to-warm, and both were measured on
-runs that fanned out narrowly. A demo that opens four workers may show worse
-per-render numbers than the card, and better wall-clock ones.
+What can be said meanwhile: the fast cluster proves the hardware and the image
+are not the problem, and the slow cluster is real and reproducible enough to move
+a median by 17%. Anyone quoting a per-render figure should quote the range.
 
 ### The rehearsal bake: 744.91 s, and its wall clock is not a comparison
 
@@ -1238,6 +1278,13 @@ decision and stays a recorded finding.
 | **[runpod/flash#366](https://github.com/runpod/flash/issues/366)** | A list of `GpuType`s does not constrain placement; a single `GpuType` does | `runpod/flash` |
 | **[runpod/docs#800](https://github.com/runpod/docs/issues/800)** | `PodTemplate.containerRegistryAuthId` is required for private images and is documented nowhere | `runpod/docs` |
 | **[runpod/runpodctl#327](https://github.com/runpod/runpodctl/issues/327)** | `runpodctl registry create` accepts a registry password only as a command-line flag | `runpod/runpodctl` |
+| **[runpod/flash#367](https://github.com/runpod/flash/issues/367)** | `flash app delete` reports success but leaves the serverless endpoint running and billable | `runpod/flash` |
+
+The last row is Cycle 6's, approved and filed 2026-08-18. It brings the count to
+**seven filed across three repositories**, and it is the fourth of them whose
+subject is a Runpod tool reporting an intention as an outcome — after #364's
+standby worker, #365's deploy that provisions nothing, and #366's advisory GPU
+list.
 
 Each was filed with `gh issue create --repo <org/repo> --title <t> --body-file <f>`.
 The command is recorded because Cycle 3 filed `runpod/flash#363` and did not
