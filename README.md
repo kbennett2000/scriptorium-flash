@@ -14,7 +14,7 @@ total Runpod spend **$1.1320333838**.
 
 ## What this is
 
-I have an app called Scriptorium. It takes a public-domain book and turns it into
+I have an app called [Scriptorium](https://github.com/kbennett2000/scriptorium). It takes a public-domain book and turns it into
 an illustrated edition. It does that with two kinds of AI work:
 
 - **Text steps:** a language model reads each page and decides who is in it,
